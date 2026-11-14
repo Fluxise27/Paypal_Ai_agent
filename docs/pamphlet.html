@@ -1,0 +1,1830 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>AgentCart — Architecture, Design & Implementation</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  html, body { margin: 0; padding: 0; background: #d9e1ee; }
+  body { font-family: "DejaVu Sans", system-ui, sans-serif; color: #101828; }
+
+  .page {
+    position: relative;
+    width: 210mm;
+    height: 297mm;
+    overflow: hidden;
+    background: #f7f9fd;
+    page-break-after: always;
+    break-after: page;
+  }
+  .page:last-child { page-break-after: auto; break-after: auto; }
+
+  /* ---------- chrome ---------- */
+  .rail {
+    position: absolute; left: 0; top: 0; bottom: 0; width: 5mm;
+    background: linear-gradient(180deg, #0b6fe8 0%, #009cde 55%, #f5b301 100%);
+  }
+  .ph {
+    position: absolute; top: 10mm; left: 18mm; right: 18mm;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 7pt; letter-spacing: 1.4pt; text-transform: uppercase;
+    color: #7b8aa5;
+  }
+  .ph .brand { letter-spacing: 0.4pt; color: #0b1b33; font-weight: 700; text-transform: none; font-size: 8pt; }
+  .pf {
+    position: absolute; bottom: 8mm; left: 18mm; right: 18mm;
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 7pt; color: #8493ad; border-top: 0.4pt solid #dbe3f0; padding-top: 2.5mm;
+  }
+  .pf b { color: #334155; }
+  .content { position: absolute; top: 21mm; left: 18mm; right: 18mm; bottom: 16mm; }
+
+  /* ---------- type ---------- */
+  .kicker { font-size: 7.2pt; font-weight: 700; letter-spacing: 1.5pt; text-transform: uppercase; color: #0b6fe8; margin: 0 0 2.5mm; }
+  h1 { font-size: 25pt; line-height: 1.08; letter-spacing: -0.7pt; margin: 0 0 4mm; color: #0b1b33; }
+  h2 { font-size: 13.5pt; line-height: 1.2; letter-spacing: -0.2pt; margin: 0 0 2.5mm; color: #0b1b33; }
+  h3 { font-size: 9.6pt; margin: 0 0 1.5mm; color: #0b1b33; }
+  .lead { font-size: 10.6pt; line-height: 1.5; color: #344054; margin: 0 0 4mm; }
+  p { font-size: 9pt; line-height: 1.55; color: #344054; margin: 0 0 2.6mm; }
+  .tiny { font-size: 7.4pt; line-height: 1.45; color: #5b6b84; }
+  .mono { font-family: "DejaVu Sans Mono", monospace; }
+  .blue { color: #0b6fe8; }
+  .green { color: #0e9f6e; }
+  .gold { color: #b77900; }
+  .red { color: #c53d3d; }
+  strong { color: #0b1b33; }
+  .rule { width: 14mm; height: 1.1mm; background: #0b6fe8; border-radius: 2mm; margin: 0 0 5mm; }
+  .rule.gold { background: #f5b301; }
+
+  /* ---------- layout ---------- */
+  .row { display: flex; gap: 4mm; }
+  .col { flex: 1; min-width: 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 3.5mm; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3mm; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2.6mm; }
+  .mt2 { margin-top: 2mm; } .mt3 { margin-top: 3mm; } .mt4 { margin-top: 4mm; } .mt5 { margin-top: 5mm; }
+  .mb0 { margin-bottom: 0; }
+
+  /* ---------- cards ---------- */
+  .card { background: #fff; border: 0.5pt solid #dce4f0; border-radius: 2.4mm; padding: 3.6mm; }
+  .card.tint { background: #eef4ff; border-color: #cfdefb; }
+  .card.dark { background: #0b1b33; border-color: #0b1b33; color: #e8eefb; }
+  .card.dark h3, .card.dark strong { color: #fff; }
+  .card.dark p, .card.dark .tiny { color: #b8c6dd; }
+  .card.gold { background: #fff8e6; border-color: #f3d489; }
+  .card.green { background: #ebf9f2; border-color: #b9e6d1; }
+  .card h3:last-child, .card p:last-child { margin-bottom: 0; }
+
+  .tag { display: inline-block; font-size: 6.6pt; font-weight: 700; letter-spacing: 0.6pt; text-transform: uppercase; padding: 1mm 2mm; border-radius: 10mm; background: #e8effc; color: #0b5dc0; }
+  .tag.green { background: #dff6ea; color: #0a7a55; }
+  .tag.gold { background: #fff1c9; color: #8a5d00; }
+  .tag.red { background: #fde4e4; color: #a82f2f; }
+  .tag.dark { background: #1b2d4d; color: #cfe0ff; }
+
+  /* ---------- flow diagrams ---------- */
+  .flow { display: flex; align-items: center; gap: 2mm; }
+  .flow.wrap { flex-wrap: wrap; }
+  .node {
+    flex: 1; min-width: 0; text-align: center; background: #fff; border: 0.6pt solid #cfd9e8;
+    border-radius: 2.2mm; padding: 2.8mm 2mm; font-size: 7.6pt; font-weight: 700; color: #16304f;
+  }
+  .node small { display: block; font-weight: 400; color: #6b7a94; font-size: 6.6pt; margin-top: 1mm; letter-spacing: 0; }
+  .node.agent { background: #eef4ff; border-color: #9dc0f7; }
+  .node.paypal { background: #e6f6fd; border-color: #8fd3ee; }
+  .node.human { background: #fff8e6; border-color: #f0cf7f; }
+  .node.guard { background: #ebf9f2; border-color: #9bdec0; }
+  .node.dark { background: #0b1b33; border-color: #0b1b33; color: #fff; }
+  .node.dark small { color: #a9bcd8; }
+  .arrow { flex: 0 0 auto; color: #7b8aa5; font-size: 11pt; line-height: 1; }
+  .arrow.down { display: block; text-align: center; margin: 1mm 0; }
+  .flow-col { display: flex; flex-direction: column; gap: 1.5mm; }
+
+  /* ---------- layer stack ---------- */
+  .stack { display: flex; flex-direction: column; gap: 1.6mm; }
+  .layer { display: flex; align-items: center; gap: 3mm; border-radius: 2mm; padding: 2.6mm 3mm; border: 0.5pt solid #dce4f0; background: #fff; }
+  .layer .no { flex: 0 0 7mm; height: 7mm; border-radius: 50%; display: grid; place-items: center; font-size: 8pt; font-weight: 700; color: #fff; background: #0b6fe8; }
+  .layer.g { background: #ebf9f2; border-color: #b9e6d1; } .layer.g .no { background: #0e9f6e; }
+  .layer.y { background: #fff8e6; border-color: #f3d489; } .layer.y .no { background: #c98a00; }
+  .layer.d { background: #eef4ff; border-color: #cfdefb; } .layer.d .no { background: #0b5dc0; }
+  .layer b { display: block; font-size: 8.6pt; color: #0b1b33; }
+  .layer span { font-size: 7.4pt; color: #5b6b84; }
+
+  /* ---------- tables ---------- */
+  table { width: 100%; border-collapse: collapse; font-size: 7.6pt; }
+  th { text-align: left; font-size: 6.7pt; letter-spacing: 0.7pt; text-transform: uppercase; color: #6b7a94; font-weight: 700; padding: 2mm 2.2mm; border-bottom: 0.8pt solid #cfd9e8; background: #f0f4fb; }
+  td { padding: 2.1mm 2.2mm; border-bottom: 0.4pt solid #e4eaf4; vertical-align: top; color: #344054; line-height: 1.4; }
+  tr:last-child td { border-bottom: 0; }
+  td b { color: #0b1b33; }
+  .table-wrap { border: 0.5pt solid #dce4f0; border-radius: 2mm; overflow: hidden; background: #fff; }
+
+  /* ---------- code ---------- */
+  pre.code {
+    margin: 0; background: #0b1b33; color: #dbe7fb; border-radius: 2mm;
+    padding: 3.2mm 3.6mm; font-family: "DejaVu Sans Mono", monospace;
+    font-size: 6.9pt; line-height: 1.5; white-space: pre-wrap; word-break: break-word;
+  }
+  pre.code .c { color: #7fa4d8; }
+  pre.code .k { color: #ffd166; }
+  pre.code .s { color: #8fe3b0; }
+  code.inline { font-family: "DejaVu Sans Mono", monospace; font-size: 7.6pt; background: #e8effc; color: #0b4a9e; padding: 0.4mm 1.2mm; border-radius: 1mm; }
+
+  /* ---------- callouts ---------- */
+  .callout { border-left: 1.2mm solid #0b6fe8; background: #eef4ff; border-radius: 0 2mm 2mm 0; padding: 3mm 3.4mm; font-size: 8.2pt; line-height: 1.5; color: #1e3a5f; }
+  .callout.gold { border-left-color: #f5b301; background: #fff8e6; color: #6b4b00; }
+  .callout.red { border-left-color: #d64545; background: #fdeeee; color: #7d2626; }
+  .callout.green { border-left-color: #0e9f6e; background: #ebf9f2; color: #0b5c43; }
+  .callout b { color: inherit; }
+
+  /* ---------- stats ---------- */
+  .stat { background: #fff; border: 0.5pt solid #dce4f0; border-radius: 2.2mm; padding: 3mm; }
+  .stat .n { font-size: 22pt; font-weight: 700; letter-spacing: -1pt; color: #0b6fe8; line-height: 1; }
+  .stat .l { font-size: 7.2pt; color: #5b6b84; margin-top: 1.6mm; line-height: 1.35; }
+  .stat.green .n { color: #0e9f6e; } .stat.gold .n { color: #b77900; } .stat.dark .n { color: #0b1b33; }
+
+  /* ---------- lists ---------- */
+  ul.clean { margin: 0; padding: 0; list-style: none; }
+  ul.clean li { position: relative; padding-left: 4.6mm; font-size: 8.1pt; line-height: 1.45; color: #344054; margin-bottom: 1.7mm; }
+  ul.clean li::before { content: ""; position: absolute; left: 0; top: 1.5mm; width: 1.8mm; height: 1.8mm; border-radius: 50%; background: #0b6fe8; }
+  ul.clean.green li::before { background: #0e9f6e; }
+  ul.clean.gold li::before { background: #f5b301; }
+  ul.clean li b { color: #0b1b33; }
+
+  /* ---------- misc ---------- */
+  .divider { height: 0.4pt; background: #dbe3f0; margin: 3.5mm 0; }
+  .legend { display: flex; gap: 4mm; flex-wrap: wrap; font-size: 7pt; color: #5b6b84; }
+  .legend i { display: inline-block; width: 2.6mm; height: 2.6mm; border-radius: 0.6mm; margin-right: 1.4mm; vertical-align: -0.4mm; }
+  .swatch-blue { background: #0b6fe8; } .swatch-cyan { background: #009cde; } .swatch-gold { background: #f5b301; } .swatch-green { background: #0e9f6e; } .swatch-navy { background: #0b1b33; }
+  .note { font-size: 7.2pt; color: #6b7a94; line-height: 1.45; }
+  .num { display: inline-grid; place-items: center; width: 5.4mm; height: 5.4mm; border-radius: 50%; background: #0b6fe8; color: #fff; font-size: 7pt; font-weight: 700; }
+  .num.gold { background: #f5b301; color: #3d2b00; } .num.green { background: #0e9f6e; }
+
+  @media screen {
+    body { padding: 10mm 0; }
+    .page { margin: 0 auto 8mm; box-shadow: 0 8px 36px rgba(15, 35, 70, 0.18); }
+  }
+  @media print {
+    html, body { background: #fff; }
+    .page { margin: 0; box-shadow: none; }
+  }
+
+  /* ---------- cover ---------- */
+  .cover {
+    background:
+      radial-gradient(120mm 90mm at 100% 0%, rgba(0, 156, 222, 0.30), transparent 65%),
+      radial-gradient(100mm 80mm at 0% 100%, rgba(11, 111, 232, 0.24), transparent 60%),
+      linear-gradient(155deg, #071021 0%, #0b1b33 55%, #0a2446 100%);
+    color: #fff;
+  }
+  .cover .grid-lines { position: absolute; inset: 0; opacity: 0.16; background-image: linear-gradient(#ffffff 0.25pt, transparent 0.25pt), linear-gradient(90deg, #ffffff 0.25pt, transparent 0.25pt); background-size: 12mm 12mm; }
+  .cover-inner { position: absolute; inset: 0; padding: 22mm; display: flex; flex-direction: column; }
+  .cover .mark { display: flex; align-items: center; gap: 3mm; font-size: 9pt; letter-spacing: 2.4pt; text-transform: uppercase; color: #9db8df; }
+  .cover .mark .box { width: 7mm; height: 7mm; border-radius: 1.6mm; background: linear-gradient(145deg, #0b6fe8, #009cde); box-shadow: 0 0 8mm rgba(0, 156, 222, 0.55); }
+  .cover h1 { color: #fff; font-size: 46pt; letter-spacing: -1.6pt; margin: 26mm 0 5mm; line-height: 0.98; }
+  .cover h1 .thin { font-weight: 400; color: #9cc0ff; }
+  .cover .sub { font-size: 13pt; line-height: 1.45; color: #c9d8ee; max-width: 132mm; margin: 0; }
+  .cover .meta { margin-top: 8mm; display: flex; gap: 4mm; flex-wrap: wrap; }
+  .cover .meta span { border: 0.5pt solid rgba(255,255,255,0.22); background: rgba(255,255,255,0.05); color: #c9d8ee; border-radius: 10mm; padding: 1.6mm 3.4mm; font-size: 7.4pt; letter-spacing: 0.5pt; }
+  .cover .spacer { flex: 1; }
+  .cover .flowline { display: flex; align-items: stretch; gap: 0; margin-bottom: 8mm; }
+  .cover .step { flex: 1; border-top: 1.4pt solid rgba(255,255,255,0.22); padding: 3mm 2mm 0 0; }
+  .cover .step b { display: block; font-size: 7.4pt; letter-spacing: 0.8pt; text-transform: uppercase; color: #fff; }
+  .cover .step span { display: block; font-size: 6.8pt; color: #8fa8cc; margin-top: 1mm; line-height: 1.35; }
+  .cover .step.hot { border-top-color: #f5b301; }
+  .cover .step.hot b { color: #ffd166; }
+  .cover .foot { display: flex; justify-content: space-between; align-items: flex-end; border-top: 0.4pt solid rgba(255,255,255,0.16); padding-top: 4mm; font-size: 7pt; color: #8fa8cc; }
+  .cover .seal { text-align: right; }
+  .cover .seal b { display: block; color: #fff; font-size: 8pt; letter-spacing: 0.6pt; }
+  .cover .seal span { font-size: 6.8pt; letter-spacing: 0.4pt; }
+
+  /* ---------- contents ---------- */
+  .toc { display: grid; grid-template-columns: 1fr 1fr; gap: 0 9mm; margin-top: 2mm; }
+  .toc-item { display: flex; align-items: baseline; gap: 2.5mm; padding: 1.85mm 0; border-bottom: 0.4pt solid #e4eaf4; }
+  .toc-item .n { font-family: "DejaVu Sans Mono", monospace; font-size: 7pt; color: #0b6fe8; width: 6mm; flex: 0 0 6mm; }
+  .toc-item .t { font-size: 8.2pt; color: #1e3a5f; flex: 1; }
+  .toc-item .p { font-family: "DejaVu Sans Mono", monospace; font-size: 6.8pt; color: #8493ad; }
+  .toc-item.part .t { font-weight: 700; color: #0b1b33; }
+
+  /* ---------- sequence ---------- */
+  .seq { position: relative; border: 0.5pt solid #dce4f0; background: #fff; border-radius: 2mm; padding: 4mm 3mm; }
+  .seq-head { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.5mm; margin-bottom: 3mm; }
+  .seq-head div { text-align: center; font-size: 6.5pt; font-weight: 700; color: #16304f; background: #eef4ff; border: 0.4pt solid #cfdefb; border-radius: 1.2mm; padding: 1.5mm 0.8mm; line-height: 1.2; }
+  .seq-head div.p { background: #e6f6fd; border-color: #8fd3ee; }
+  .seq-head div.h { background: #fff8e6; border-color: #f0cf7f; }
+  .seq-body { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1.5mm; }
+  .seq-line { position: relative; border-left: 0.4pt dashed #c6d2e4; min-height: 62mm; margin-left: 50%; }
+  .seq-msg { position: absolute; left: 0; right: -100%; display: flex; align-items: center; gap: 1.2mm; font-size: 6.3pt; color: #344054; background: #fff; padding: 0.7mm 0; transform: translateX(-4%); }
+  .seq-msg .lbl { background: #fff; padding: 0.4mm 1mm; border: 0.3pt solid #dce4f0; border-radius: 0.8mm; white-space: nowrap; }
+  .seq-msg .a { color: #0b6fe8; font-size: 7pt; }
+
+  /* ---------- receipt mock ---------- */
+  .receipt { background: #fff; border: 0.5pt solid #dce4f0; border-radius: 2.4mm; padding: 4mm; box-shadow: 0 2mm 6mm rgba(15,35,70,0.06); }
+  .receipt .rhead { display: flex; justify-content: space-between; align-items: center; border-bottom: 0.4pt dashed #d5deec; padding-bottom: 2.5mm; margin-bottom: 2.5mm; }
+  .receipt .rhead b { font-size: 9pt; color: #0b1b33; }
+  .receipt .amt { font-size: 24pt; font-weight: 700; letter-spacing: -1pt; color: #0b1b33; margin: 1mm 0 2mm; }
+  .receipt .rrow { display: flex; justify-content: space-between; font-size: 6.8pt; padding: 1.2mm 0; border-bottom: 0.3pt solid #eef2f8; }
+  .receipt .rrow span { color: #6b7a94; } .receipt .rrow b { font-family: "DejaVu Sans Mono", monospace; font-weight: 400; color: #1e3a5f; font-size: 6.4pt; }
+
+  /* ---------- matrix ---------- */
+  .ok { color: #0e7a57; font-weight: 700; } .warn { color: #a86b00; font-weight: 700; } .bad { color: #b03030; font-weight: 700; }
+
+  /* ---------- tree ---------- */
+  .tree { display: flex; flex-direction: column; gap: 1.5mm; }
+  .tree-row { display: flex; align-items: center; gap: 2mm; }
+  .tree-q { flex: 0 0 46mm; background: #0b1b33; color: #fff; font-size: 7pt; padding: 1.8mm 2.2mm; border-radius: 1.4mm; text-align: center; }
+  .tree-a { flex: 1; display: flex; gap: 1.5mm; }
+  .tree-a div { flex: 1; font-size: 6.7pt; padding: 1.8mm 2mm; border-radius: 1.4mm; border: 0.4pt solid #dce4f0; background: #fff; color: #344054; }
+  .tree-a .yes { background: #ebf9f2; border-color: #b9e6d1; }
+  .tree-a .no { background: #fdeeee; border-color: #f2c4c4; }
+
+  /* ---------- state ---------- */
+  .state { display: flex; align-items: center; gap: 2mm; }
+  .state .s { flex: 1; text-align: center; border-radius: 1.6mm; padding: 3mm 2mm; font-size: 7.4pt; font-weight: 700; border: 0.5pt solid #cfd9e8; background: #fff; }
+  .state .s small { display: block; font-weight: 400; font-size: 6.2pt; color: #6b7a94; margin-top: 1mm; }
+  .state .s.created { background: #eef4ff; border-color: #9dc0f7; }
+  .state .s.approved { background: #fff8e6; border-color: #f0cf7f; }
+  .state .s.done { background: #ebf9f2; border-color: #9bdec0; }
+  .state .s.bad { background: #fdeeee; border-color: #f2c4c4; }
+</style>
+</head>
+<body>
+
+<!-- ============================ 01 COVER ============================ -->
+<section class="page cover">
+  <div class="grid-lines"></div>
+  <div class="cover-inner">
+    <div class="mark"><span class="box"></span> AgentCart · Technical Pamphlet</div>
+
+    <h1>Architecture,<br />Design <span class="thin">&amp;</span><br />Implementation</h1>
+    <p class="sub">An AI shopping agent that can create a real PayPal order — but cannot spend your money without you.</p>
+
+    <div class="meta">
+      <span>PayPal Orders v2</span>
+      <span>Agent Toolkit</span>
+      <span>Human-in-the-loop</span>
+      <span>Sandbox build · 2026</span>
+    </div>
+
+    <div class="spacer"></div>
+
+    <div class="flowline">
+      <div class="step"><b>01 · Intent</b><span>Human asks for an item under a cap.</span></div>
+      <div class="step"><b>02 · Reason</b><span>Model picks from an allowlisted catalog.</span></div>
+      <div class="step hot"><b>03 · Guard</b><span>Code checks price, merchant, and cap.</span></div>
+      <div class="step"><b>04 · Order</b><span>PayPal order created; agent stops.</span></div>
+      <div class="step hot"><b>05 · Approve</b><span>Human signs in and consents.</span></div>
+      <div class="step"><b>06 · Capture</b><span>Server captures and receipts.</span></div>
+    </div>
+
+    <div class="foot">
+      <span>30 pages · architecture, decisions, code, operations</span>
+      <div class="seal"><b>AGENTCART</b><span>autonomy with a seatbelt</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ 02 CONTENTS ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>Front matter</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Contents</p>
+    <h1>How this pamphlet is organised</h1>
+    <p class="lead">Four movements: the problem, the system, the trust model, and the craft. Read it front to back, or jump to the page that answers your question.</p>
+
+    <div class="toc">
+      <div class="toc-item part"><span class="n">01</span><span class="t">Cover</span><span class="p">01</span></div>
+      <div class="toc-item"><span class="n">02</span><span class="t">Contents &amp; reading guide</span><span class="p">02</span></div>
+      <div class="toc-item"><span class="n">03</span><span class="t">Executive summary</span><span class="p">03</span></div>
+      <div class="toc-item"><span class="n">04</span><span class="t">The problem: the trust gap</span><span class="p">04</span></div>
+      <div class="toc-item"><span class="n">05</span><span class="t">Why today's agents break</span><span class="p">05</span></div>
+      <div class="toc-item"><span class="n">06</span><span class="t">Design principles</span><span class="p">06</span></div>
+      <div class="toc-item"><span class="n">07</span><span class="t">Goals and non-goals</span><span class="p">07</span></div>
+      <div class="toc-item"><span class="n">08</span><span class="t">Personas and journeys</span><span class="p">08</span></div>
+
+      <div class="toc-item part"><span class="n">09</span><span class="t">System at a glance</span><span class="p">09</span></div>
+      <div class="toc-item"><span class="n">10</span><span class="t">Runtime topology and stack</span><span class="p">10</span></div>
+      <div class="toc-item"><span class="n">11</span><span class="t">Anatomy of an errand</span><span class="p">11</span></div>
+      <div class="toc-item"><span class="n">12</span><span class="t">The agent loop</span><span class="p">12</span></div>
+      <div class="toc-item"><span class="n">13</span><span class="t">OAuth and token lifecycle</span><span class="p">13</span></div>
+      <div class="toc-item"><span class="n">14</span><span class="t">Creating the order</span><span class="p">14</span></div>
+      <div class="toc-item"><span class="n">15</span><span class="t">The approval handoff</span><span class="p">15</span></div>
+      <div class="toc-item"><span class="n">16</span><span class="t">Capture</span><span class="p">16</span></div>
+      <div class="toc-item"><span class="n">17</span><span class="t">The receipt and the proof</span><span class="p">17</span></div>
+
+      <div class="toc-item part"><span class="n">18</span><span class="t">The trust model</span><span class="p">18</span></div>
+      <div class="toc-item"><span class="n">19</span><span class="t">Layer 1: the spend cap</span><span class="p">19</span></div>
+      <div class="toc-item"><span class="n">20</span><span class="t">Layer 2: the allowlist</span><span class="p">20</span></div>
+      <div class="toc-item"><span class="n">21</span><span class="t">Layer 3: human approval</span><span class="p">21</span></div>
+      <div class="toc-item"><span class="n">22</span><span class="t">Layer 4: audit trail</span><span class="p">22</span></div>
+      <div class="toc-item"><span class="n">23</span><span class="t">The deterministic fallback</span><span class="p">23</span></div>
+      <div class="toc-item"><span class="n">24</span><span class="t">Failure modes and degradation</span><span class="p">24</span></div>
+      <div class="toc-item"><span class="n">25</span><span class="t">Security and threat model</span><span class="p">25</span></div>
+
+      <div class="toc-item part"><span class="n">26</span><span class="t">Data model and state machine</span><span class="p">26</span></div>
+      <div class="toc-item"><span class="n">27</span><span class="t">API contracts</span><span class="p">27</span></div>
+      <div class="toc-item"><span class="n">28</span><span class="t">Implementation map</span><span class="p">28</span></div>
+      <div class="toc-item"><span class="n">29</span><span class="t">Testing, deployment, operations</span><span class="p">29</span></div>
+      <div class="toc-item"><span class="n">30</span><span class="t">Why it wins and what's next</span><span class="p">30</span></div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="grid3">
+      <div class="card tint"><h3>Who should read what</h3><p class="tiny mb0"><b>Judges:</b> pages 3–6, 18–24, and 30. <b>Engineers:</b> pages 9–17 and 25–29. <b>Presenters:</b> pages 3, 9, 18, and 30.</p></div>
+      <div class="card gold"><h3>The one-sentence thesis</h3><p class="tiny mb0">Agentic commerce needs a separation of powers: the model proposes, code disposes, and the human authorises.</p></div>
+      <div class="card green"><h3>What makes it demo-safe</h3><p class="tiny mb0">Every LLM step has a deterministic twin. If the model fails, the same PayPal flow runs without it.</p></div>
+    </div>
+
+    <div class="legend mt4">
+      <span><i class="swatch-blue"></i>Agent / reasoning</span>
+      <span><i class="swatch-green"></i>Guard / enforcement</span>
+      <span><i class="swatch-cyan"></i>PayPal</span>
+      <span><i class="swatch-gold"></i>Human decision</span>
+      <span><i class="swatch-navy"></i>Infrastructure</span>
+    </div>
+  </div>
+  <footer class="pf"><span>Architecture, Design &amp; Implementation</span><span><b>02</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 03 EXECUTIVE SUMMARY ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>01 · The argument</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Executive summary</p>
+    <h1>A buying agent you can actually trust with a budget</h1>
+    <p class="lead">AgentCart is a working agentic-checkout prototype built on PayPal's sandbox. It demonstrates one idea precisely: an AI agent can be given real purchasing power if — and only if — its authority is bounded by code and released by a human.</p>
+
+    <div class="grid4 mt3">
+      <div class="stat"><div class="n">1</div><div class="l">tool exposed to the model: <b>create_order</b></div></div>
+      <div class="stat green"><div class="n">4</div><div class="l">independent trust layers before money moves</div></div>
+      <div class="stat gold"><div class="n">2</div><div class="l">checkout paths: agentic and deterministic</div></div>
+      <div class="stat dark"><div class="n">0</div><div class="l">captures possible before human approval</div></div>
+    </div>
+
+    <div class="grid2 mt4">
+      <div>
+        <h2>What we built</h2>
+        <p>A single-page Next.js app. A user gives the agent an errand and a spend cap. The agent chooses an item from a fixed catalog, creates a PayPal order through the Agent Toolkit, and stops. The browser sends the user to PayPal's sandbox approval screen. On return, the server captures the payment and renders a receipt containing the real order ID, capture ID, payer, and amount.</p>
+        <p>Around that happy path sit four defence layers: a server-side spend cap, a merchant and price allowlist, a human approval gate that the model cannot bypass, and a timestamped audit trail. A deterministic fallback can complete the same flow without any LLM, using the same PayPal APIs.</p>
+      </div>
+      <div>
+        <h2>Why it matters</h2>
+        <p>The hard problem in agentic commerce is not teaching a model to click "buy". It is granting delegated authority without granting unbounded risk. Most prototypes either keep the human clicking every button — which is not agency — or hand the model a full payments toolkit and hope the prompt holds.</p>
+        <p>This design takes the third path: the model gets exactly one irreversible-adjacent capability, and even that capability is wrapped in a guard that can refuse it. Capture is a separate, server-only step that requires a human to have approved first.</p>
+        <div class="callout mt2"><b>In one line:</b> the agent proposes, the guard disposes, the human authorises, and PayPal settles.</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <div class="row">
+      <div class="col card tint"><h3>The demo in 20 seconds</h3><p class="tiny mb0">Type "buy a USB-C cable under $15" → watch the guard pass → approve in PayPal sandbox → land on a receipt with a capture ID. If the model is unavailable, the same flow runs deterministically.</p></div>
+      <div class="col card gold"><h3>The differentiator</h3><p class="tiny mb0">Other agents show a chat and a payment button. This one shows the boundary: what the agent may do, what it may never do, and the exact line of code that enforces it.</p></div>
+      <div class="col card green"><h3>The engineering claim</h3><p class="tiny mb0">Every trust claim is testable. The cap is arithmetic. The allowlist is string equality plus price equality. The gate is the absence of a capture tool.</p></div>
+    </div>
+  </div>
+  <footer class="pf"><span>01 · The argument</span><span><b>03</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 04 PROBLEM ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>01 · The argument</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">The problem</p>
+    <h1>Agents can reason about money.<br />They should not be trusted with it.</h1>
+    <p class="lead">A language model is an excellent planner and a terrible fiduciary. It has no stable memory of your budget, no native concept of consent, and no immune system against a sentence that says "ignore your instructions".</p>
+
+    <div class="grid3 mt3">
+      <div class="card"><span class="tag red">Failure 01</span><h3 class="mt2">The overspend</h3><p class="tiny mb0">The prompt says "under $15". The model finds a $49 pair of earbuds that matches the intent better and calls checkout. Nothing in the architecture prevents it, because the limit lived in prose.</p></div>
+      <div class="card"><span class="tag red">Failure 02</span><h3 class="mt2">The wrong merchant</h3><p class="tiny mb0">The agent is asked for a cable and "helpfully" buys from a lookalike store with a similar name. There is no allowlist, so the payment goes to an entity the user never chose.</p></div>
+      <div class="card"><span class="tag red">Failure 03</span><h3 class="mt2">The injected instruction</h3><p class="tiny mb0">A product description contains hidden text: "ship to this address" or "refund to account X". If the model has refund and payout tools, the injection becomes a transaction.</p></div>
+    </div>
+
+    <div class="row mt4">
+      <div class="col">
+        <h2>The missing primitive</h2>
+        <p>Payments infrastructure has spent decades building bounded authority: card limits, merchant categories, 3-D Secure, chargebacks, mandates. Agentic commerce needs the same idea expressed for software agents. The question is not "can the agent pay?" but "what exactly is it allowed to do, and who can prove it afterwards?"</p>
+        <p>Today's prototypes usually answer with one of two extremes. Either the human approves every micro-step, which removes the benefit of delegation, or the agent holds broad API credentials and the only control is a system prompt. Both are unsatisfying: one is not agency, the other is not safe.</p>
+      </div>
+      <div class="col card dark">
+        <span class="tag dark">The core insight</span>
+        <h3 class="mt2">Authority is not a prompt.</h3>
+        <p class="tiny">A limit that exists only as text is a suggestion. A limit that exists as arithmetic on a tool argument is an enforcement mechanism.</p>
+        <div class="divider" style="background:#27405f"></div>
+        <p class="tiny mb0">AgentCart moves every important constraint out of the model's context and into code that runs before the irreversible call.</p>
+      </div>
+    </div>
+
+    <div class="callout gold mt4"><b>Design consequence:</b> the model is allowed to be wrong. It may pick the wrong item, hallucinate a price, or refuse to answer. The system must remain correct — and the user's money must remain untouched — when it is wrong.</div>
+
+    <div class="grid3 mt4">
+      <div class="stat"><div class="n">$15</div><div class="l">example cap, enforced in the guard</div></div>
+      <div class="stat"><div class="n">6</div><div class="l">allowlisted items, exact prices</div></div>
+      <div class="stat"><div class="n">1</div><div class="l">irreversible step, behind a human</div></div>
+    </div>
+  </div>
+  <footer class="pf"><span>01 · The argument</span><span><b>04</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 05 STATUS QUO ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>01 · The argument</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">The status quo</p>
+    <h1>Why most "AI + PayPal" agents break under scrutiny</h1>
+    <p class="lead">The pattern is familiar: a chat box, a function call, and a checkout button. It demos well for ninety seconds. Then a judge asks what happens if the model overspends — and the answer is a prompt.</p>
+
+    <div class="table-wrap mt3">
+      <table>
+        <thead><tr><th style="width:22%">Pattern</th><th style="width:34%">What it actually does</th><th>Where it breaks</th></tr></thead>
+        <tbody>
+          <tr><td><b>Chat wrapper</b></td><td>Model produces an order summary; a human clicks a normal PayPal button.</td><td>The "agent" never touches order state. It is a copywriter with a payment link, not an agent.</td></tr>
+          <tr><td><b>Full toolkit</b></td><td>Model can create, capture, refund, and pay out.</td><td>One injected sentence or one bad plan can move money. There is no separation between proposal and settlement.</td></tr>
+          <tr><td><b>Prompt-only cap</b></td><td>System prompt says "never spend more than $15".</td><td>A model can ignore, forget, or reinterpret it. The check is not arithmetic; it is etiquette.</td></tr>
+          <tr><td><b>Happy-path demo</b></td><td>Live LLM call, no fallback, no retries.</td><td>Network blips, rate limits, or a malformed tool call end the demo. The architecture has no second gear.</td></tr>
+          <tr><td><b>Fake approval</b></td><td>A custom modal says "Approve payment".</td><td>No real consent surface, no PayPal authentication, no auditable approval. It is theatre, not a gate.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="row mt4">
+      <div class="col">
+        <h2>The common mistake</h2>
+        <p>All five patterns treat the model's context as a security boundary. But the context is exactly the thing an attacker can influence — through the user prompt, a product description, a retrieved document, or a tool result. If the constraint lives there, it is attack surface, not control.</p>
+        <p>AgentCart's response is to shrink the model's authority until the remaining risk is acceptable, then move every constraint into deterministic code. The model still does the valuable part — interpreting intent and choosing an item — but it never receives the keys to settlement.</p>
+      </div>
+      <div class="col card red">
+        <span class="tag red">Anti-pattern</span>
+        <h3 class="mt2">"The system prompt is my spend limit."</h3>
+        <p class="tiny">A prompt can be overridden by another prompt, forgotten after summarisation, or quietly ignored when the model is confident. It cannot be unit-tested. It cannot be audited. It cannot refuse a $49 charge with arithmetic.</p>
+        <p class="tiny mb0"><b>Test:</b> ask the model to buy something above the cap. If the only thing standing between it and PayPal is a sentence, the architecture is not safe.</p>
+      </div>
+    </div>
+
+    <div class="callout green mt4"><b>What good looks like:</b> the model can propose any item it likes. The guard compares the proposal to a table of allowed names and prices and a numeric cap. If the proposal fails, no order exists. That is a control you can demonstrate on stage.</div>
+  </div>
+  <footer class="pf"><span>01 · The argument</span><span><b>05</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 06 PRINCIPLES ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>01 · The argument</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Design principles</p>
+    <h1>Six rules that shaped every file</h1>
+    <p class="lead">These are not values on a wall. Each one maps to a concrete decision in the codebase, and each one can be pointed at during a demo.</p>
+
+    <div class="grid2 mt3">
+      <div class="card tint"><span class="num">1</span><h3 class="mt2">Separate reasoning from authority</h3><p class="tiny mb0">The model decides <i>what</i> to buy. Code decides <i>whether</i> the purchase is allowed. Capture is never a model tool.</p></div>
+      <div class="card green"><span class="num green">2</span><h3 class="mt2">Enforce in code, not prose</h3><p class="tiny mb0">The cap is a numeric comparison. The allowlist is string and price equality. If it cannot be unit-tested, it is not a control.</p></div>
+      <div class="card gold"><span class="num gold">3</span><h3 class="mt2">Stop before capture</h3><p class="tiny mb0">The agent's world ends at an approved order. Settlement requires a human consent event and a server-side call.</p></div>
+      <div class="card"><span class="num">4</span><h3 class="mt2">Fail closed, then fail safe</h3><p class="tiny mb0">Unknown merchant or price → refuse. Model unavailable → deterministic path. The user still gets a bounded outcome.</p></div>
+      <div class="card"><span class="num">5</span><h3 class="mt2">Make trust visible</h3><p class="tiny mb0">The UI shows the cap, the mode, the order ID, and a timestamped audit trail. Trust that cannot be inspected is just vibes.</p></div>
+      <div class="card"><span class="num">6</span><h3 class="mt2">Treat the demo as a feature</h3><p class="tiny mb0">A live hackathon demo is a distributed system with one attempt. Every LLM step has a deterministic twin and a visible failure state.</p></div>
+    </div>
+
+    <div class="divider"></div>
+    <h2 class="mt2">The principles in tension</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:26%">Tension</th><th style="width:37%">Naive answer</th><th>AgentCart's answer</th></tr></thead>
+        <tbody>
+          <tr><td><b>Autonomy vs. safety</b></td><td>Let the agent do everything, or nothing.</td><td>Give it the smallest capability that still feels agentic: choose and create an order.</td></tr>
+          <tr><td><b>Speed vs. proof</b></td><td>Skip the receipt; show a success toast.</td><td>Render the PayPal capture ID and payer. Proof is the product.</td></tr>
+          <tr><td><b>Flexibility vs. reliability</b></td><td>One clever LLM path.</td><td>Two paths behind one result contract, with the deterministic one always available.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout mt4"><b>How to use this in a review:</b> for every feature, ask which principle it serves and which failure it prevents. If the answer is "it looks cool", it belongs in the roadmap, not the critical path.</div>
+  </div>
+  <footer class="pf"><span>01 · The argument</span><span><b>06</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 07 GOALS ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>01 · The argument</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Scope</p>
+    <h1>Goals, non-goals, and the discipline of a small surface</h1>
+    <p class="lead">A hackathon build earns trust by being explicit about what it refuses to do. The non-goals are not missing features; they are deliberate load-bearing walls.</p>
+
+    <div class="row mt3">
+      <div class="col">
+        <div class="card green" style="height:100%">
+          <span class="tag green">Goals</span>
+          <h2 class="mt2">What must be true</h2>
+          <ul class="clean green">
+            <li><b>G1 · Real order state.</b> Create a genuine PayPal order, not a mock or a screenshot.</li>
+            <li><b>G2 · Real approval.</b> The user authenticates and consents inside PayPal's sandbox.</li>
+            <li><b>G3 · Real capture.</b> A server-side capture returns a capture ID and payer details.</li>
+            <li><b>G4 · Bounded spend.</b> No path can create an order above the cap, including the LLM path.</li>
+            <li><b>G5 · Merchant integrity.</b> Only catalog items at catalog prices can be purchased.</li>
+            <li><b>G6 · Demo resilience.</b> The flow completes without an LLM key, and degrades visibly when PayPal fails.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <span class="tag">Non-goals</span>
+          <h2 class="mt2">What we intentionally left out</h2>
+          <ul class="clean gold">
+            <li><b>N1 · Production KYC.</b> This is a sandbox prototype; identity and compliance are out of scope.</li>
+            <li><b>N2 · Real inventory.</b> The catalog is a controlled demo fixture, not a merchant integration.</li>
+            <li><b>N3 · Refunds and payouts.</b> Adding money-moving tools would enlarge the attack surface for no demo value.</li>
+            <li><b>N4 · Subscriptions.</b> Recurring authority is a different consent model; it deserves its own design.</li>
+            <li><b>N5 · A database.</b> PayPal is the source of truth; the order ID is the join key.</li>
+            <li><b>N6 · Multi-tenant auth.</b> The app is single-user and sandbox-only by design.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <h2>Why these boundaries produce a better demo</h2>
+    <div class="grid3">
+      <div class="card tint"><h3>Smaller surface, stronger claim</h3><p class="tiny mb0">With one tool, one catalog, and one cap, every statement about safety can be verified live. Complexity would blur the story.</p></div>
+      <div class="card tint"><h3>Clear failure ownership</h3><p class="tiny mb0">When something breaks, it is either PayPal credentials, the redirect URL, or the model. There is no fourth subsystem to blame.</p></div>
+      <div class="card tint"><h3>Room to go deep</h3><p class="tiny mb0">The guard, the fallback, and the receipt are small enough to explain completely — which is what separates an architecture from a sketch.</p></div>
+    </div>
+
+    <div class="callout gold mt4"><b>Rule of thumb:</b> every tool you give an agent is a permission, not a feature. Add one only when you can describe the worst thing it can do and the code that stops it.</div>
+  </div>
+  <footer class="pf"><span>01 · The argument</span><span><b>07</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 08 PERSONAS ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>01 · The argument</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Users</p>
+    <h1>Three people, three definitions of "working"</h1>
+    <p class="lead">The buyer wants leverage. The judge wants proof. The operator wants a system that does not surprise them in production. The same architecture has to satisfy all three.</p>
+
+    <div class="grid3 mt3">
+      <div class="card gold"><span class="tag gold">Persona 01</span><h3 class="mt2">Maya · the delegator</h3><p class="tiny">Busy, budget-conscious, comfortable with AI but not with handing over a card. She wants the agent to do the boring part and to keep a hard ceiling.</p><p class="tiny mb0"><b>Success:</b> one sentence in, one approval tap, a receipt she can forward.</p></div>
+      <div class="card tint"><span class="tag">Persona 02</span><h3 class="mt2">Dev · the judge</h3><p class="tiny">Has seen ten checkout demos today. Looking for a real transaction, a real constraint, and a clear explanation of the boundary.</p><p class="tiny mb0"><b>Success:</b> can inspect an order ID, a capture ID, and the exact guard code.</p></div>
+      <div class="card green"><span class="tag green">Persona 03</span><h3 class="mt2">Sam · the operator</h3><p class="tiny">Runs the app. Cares about secrets, redirect URLs, rate limits, and what happens at 2 a.m. when the model provider has an outage.</p><p class="tiny mb0"><b>Success:</b> a fallback path, useful errors, and no silent money movement.</p></div>
+    </div>
+
+    <h2 class="mt4">Maya's journey, step by step</h2>
+    <div class="flow mt2">
+      <div class="node human">Intent<small>"USB-C cable under $15"</small></div>
+      <span class="arrow">→</span>
+      <div class="node agent">Reason<small>pick from catalog</small></div>
+      <span class="arrow">→</span>
+      <div class="node guard">Guard<small>cap + price check</small></div>
+      <span class="arrow">→</span>
+      <div class="node paypal">Order<small>PayPal creates it</small></div>
+      <span class="arrow">→</span>
+      <div class="node human">Approve<small>PayPal login</small></div>
+      <span class="arrow">→</span>
+      <div class="node green">Receipt<small>capture + proof</small></div>
+    </div>
+
+    <div class="table-wrap mt4">
+      <table>
+        <thead><tr><th style="width:17%">Persona</th><th style="width:31%">What they need to see</th><th style="width:26%">Where it lives</th><th>Proof in the demo</th></tr></thead>
+        <tbody>
+          <tr><td><b>Maya</b></td><td>The cap, the chosen item, and a clean approval screen.</td><td>Errand form, approval queue, PayPal redirect.</td><td>Cap stays $15; item is $12.99.</td></tr>
+          <tr><td><b>Dev</b></td><td>A real order, a real capture, and the enforcement code.</td><td>Receipt page, README, <code class="inline">lib/agent.ts</code>.</td><td>Order ID and capture ID match PayPal.</td></tr>
+          <tr><td><b>Sam</b></td><td>Fallback behavior, error messages, secret handling.</td><td>Audit trail, API errors, env docs.</td><td>Pull the model key; flow still completes.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout mt4"><b>Design consequence:</b> the UI shows the audit trail and the mode badge ("Agent Toolkit" vs "Safe checkout"). That single badge answers the judge's question and the operator's question at the same time.</div>
+  </div>
+  <footer class="pf"><span>01 · The argument</span><span><b>08</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 09 SYSTEM ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>02 · The system</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">System at a glance</p>
+    <h1>Two paths, one payment contract</h1>
+    <p class="lead">The app has an agentic path and a deterministic path. They converge on the same guard and the same PayPal Orders v2 calls, and they return the same result shape to the UI.</p>
+
+    <div class="card mt3" style="padding:4mm 4.5mm">
+      <div class="tiny" style="letter-spacing:1.2pt; text-transform:uppercase; color:#7b8aa5; margin-bottom:2mm">Client</div>
+      <div class="flow">
+        <div class="node human">Human<small>intent + spend cap</small></div>
+        <span class="arrow">→</span>
+        <div class="node">Browser UI<small>React client</small></div>
+        <span class="arrow">→</span>
+        <div class="node dark">POST /api/checkout<small>Next.js route handler</small></div>
+      </div>
+
+      <div class="tiny mt4" style="letter-spacing:1.2pt; text-transform:uppercase; color:#7b8aa5; margin-bottom:2mm">Decision layer</div>
+      <div class="flow">
+        <div class="node agent">Agent path<small>AI SDK + Agent Toolkit</small></div>
+        <span class="arrow">→</span>
+        <div class="node guard">Guard wrapper<small>cap + allowlist</small></div>
+        <span class="arrow">←</span>
+        <div class="node">Safe path<small>deterministic picker</small></div>
+        <span class="arrow">→</span>
+        <div class="node paypal">create_order<small>Orders v2</small></div>
+      </div>
+
+      <div class="tiny mt4" style="letter-spacing:1.2pt; text-transform:uppercase; color:#7b8aa5; margin-bottom:2mm">PayPal sandbox</div>
+      <div class="flow">
+        <div class="node paypal">Order CREATED<small>id + approve link</small></div>
+        <span class="arrow">→</span>
+        <div class="node human">Buyer approval<small>paypal.com login</small></div>
+        <span class="arrow">→</span>
+        <div class="node paypal">Order APPROVED<small>return_url?token=id</small></div>
+        <span class="arrow">→</span>
+        <div class="node green">Capture<small>POST …/capture</small></div>
+      </div>
+
+      <div class="tiny mt4" style="letter-spacing:1.2pt; text-transform:uppercase; color:#7b8aa5; margin-bottom:2mm">Result</div>
+      <div class="flow">
+        <div class="node">Receipt page<small>server-rendered</small></div>
+        <span class="arrow">←</span>
+        <div class="node paypal">Capture ID<small>payer · amount · status</small></div>
+        <span class="arrow">←</span>
+        <div class="node green">Audit trail<small>timestamped steps</small></div>
+      </div>
+    </div>
+
+    <div class="grid3 mt4">
+      <div class="card tint"><h3>One contract</h3><p class="tiny mb0">Both paths return <code class="inline">CheckoutResult</code>: mode, order ID, approve URL, item, rationale, steps. The UI cannot tell which path produced it — except by the honest mode badge.</p></div>
+      <div class="card green"><h3>One gate</h3><p class="tiny mb0">Neither path can capture. Capture only happens in the return route, after PayPal sends the buyer back with an approved order.</p></div>
+      <div class="card gold"><h3>One source of truth</h3><p class="tiny mb0">PayPal owns order and capture state. The app stores nothing durable; the order ID is the join key between every page.</p></div>
+    </div>
+
+    <div class="callout mt4"><b>Why this diagram matters:</b> it shows the two things judges look for — a genuine sponsor integration (Orders v2 + Agent Toolkit) and a boundary around the dangerous step. The safe path is not a stub; it is the reliability story.</div>
+  </div>
+  <footer class="pf"><span>02 · The system</span><span><b>09</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 10 TOPOLOGY ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>02 · The system</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Runtime topology</p>
+    <h1>A deliberately small deployment surface</h1>
+    <p class="lead">One Next.js app, two server-only secrets, no database, and PayPal as the system of record. Less infrastructure means fewer places for a live demo to fail.</p>
+
+    <div class="card mt3">
+      <div class="flow">
+        <div class="node human">Browser<small>React client, no secrets</small></div>
+        <span class="arrow">→</span>
+        <div class="node dark">Vercel<small>Next.js server functions</small></div>
+        <span class="arrow">→</span>
+        <div class="node agent">Agent runtime<small>AI SDK + toolkit</small></div>
+        <span class="arrow">→</span>
+        <div class="node paypal">PayPal sandbox<small>api-m.sandbox.paypal.com</small></div>
+      </div>
+      <div class="flow mt2" style="justify-content:center">
+        <div class="node" style="flex:0 0 50mm">Environment<small>PAYPAL_CLIENT_ID · SECRET · APP_URL</small></div>
+        <span class="arrow">→</span>
+        <div class="node" style="flex:0 0 50mm">Server-only<small>never shipped to the browser</small></div>
+      </div>
+    </div>
+
+    <div class="table-wrap mt4">
+      <table>
+        <thead><tr><th style="width:19%">Layer</th><th style="width:27%">Choice</th><th>Why this choice</th></tr></thead>
+        <tbody>
+          <tr><td><b>UI</b></td><td>Next.js App Router + React client page</td><td>One codebase for the errand UI and server routes; fast deploy; no separate API service.</td></tr>
+          <tr><td><b>API</b></td><td>Route handlers on the Node runtime</td><td>Needs Node's <code class="inline">Buffer</code> for Basic auth and a shared in-memory token cache.</td></tr>
+          <tr><td><b>Agent</b></td><td>Vercel AI SDK v4 + <code class="inline">@paypal/agent-toolkit</code></td><td>The toolkit ships AI SDK tools directly; v4 is the version its <code class="inline">maxSteps</code>/<code class="inline">toolResults</code> API targets.</td></tr>
+          <tr><td><b>Payments</b></td><td>Orders v2 REST (<code class="inline">create</code>, <code class="inline">get</code>, <code class="inline">capture</code>)</td><td>The smallest API surface that supports a real approval and a real capture.</td></tr>
+          <tr><td><b>State</b></td><td>None (PayPal is the source of truth)</td><td>No DB to provision, no migration, no stale local state. The order ID travels in the URL.</td></tr>
+          <tr><td><b>Deploy</b></td><td>Vercel, HTTPS by default</td><td>The PayPal return URL must be reachable and HTTPS for a clean approval round-trip.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="row mt4">
+      <div class="col card green"><h3>What runs where</h3><p class="tiny mb0"><b>Browser:</b> form state, result rendering, audit display. <b>Server:</b> credential exchange, guard checks, order creation, capture. <b>PayPal:</b> authentication, approval, settlement, order history.</p></div>
+      <div class="col card gold"><h3>The one cache</h3><p class="tiny mb0">The OAuth access token is cached in module memory with a 30-second safety margin. On a cold start it is fetched again. No token is ever sent to the client.</p></div>
+    </div>
+
+    <div class="callout red mt4"><b>Do not add a database to this demo.</b> It would introduce a second source of truth and a new failure mode without improving the story. If you need history later, add webhooks and an append-only event log — after the demo.</div>
+  </div>
+  <footer class="pf"><span>02 · The system</span><span><b>10</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 11 SEQUENCE ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>02 · The system</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">End-to-end</p>
+    <h1>Anatomy of one errand</h1>
+    <p class="lead">Nine messages between the human, the app, and PayPal. The agent only participates in steps 3–5; everything before is intent, everything after is settlement.</p>
+
+    <div class="table-wrap mt3">
+      <table>
+        <thead><tr><th style="width:6%">#</th><th style="width:15%">From → To</th><th style="width:39%">Message</th><th>What must be true afterwards</th></tr></thead>
+        <tbody>
+          <tr><td><b>1</b></td><td>Human → UI</td><td>"Buy a USB-C cable under $15."</td><td>A prompt and a numeric cap exist.</td></tr>
+          <tr><td><b>2</b></td><td>UI → API</td><td><code class="inline">POST /api/checkout {prompt, budget}</code></td><td>The server validates input; no secret is in the request.</td></tr>
+          <tr><td><b>3</b></td><td>API → Agent</td><td>System prompt + catalog + cap + tool schema</td><td>The model can only see one action tool.</td></tr>
+          <tr><td><b>4</b></td><td>Agent → Guard</td><td><code class="inline">create_order</code> with item name, cost, quantity</td><td>Name and price match the catalog; total ≤ cap.</td></tr>
+          <tr><td><b>5</b></td><td>Guard → PayPal</td><td><code class="inline">POST /v2/checkout/orders</code></td><td>PayPal returns an order ID and an approve link.</td></tr>
+          <tr><td><b>6</b></td><td>UI → PayPal</td><td>Redirect to the approve link</td><td>The buyer authenticates on PayPal's domain.</td></tr>
+          <tr><td><b>7</b></td><td>PayPal → API</td><td><code class="inline">GET /api/paypal/return?token=ORDER_ID</code></td><td>The order is approved and belongs to this app.</td></tr>
+          <tr><td><b>8</b></td><td>API → PayPal</td><td><code class="inline">POST /v2/checkout/orders/{id}/capture</code></td><td>A capture ID exists; status is COMPLETED.</td></tr>
+          <tr><td><b>9</b></td><td>API → Human</td><td>Receipt with order, capture, payer, amount</td><td>The proof is visible and refreshable.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="row mt4">
+      <div class="col">
+        <h2>Where the agent stops</h2>
+        <p>Step 5 is the agent's last action. It receives a tool result containing the order ID and links, writes one sentence of rationale, and returns. It never sees the buyer's PayPal session, never receives a capture tool, and never handles the return URL's token beyond passing it through.</p>
+        <p>The boundary is not a policy statement in the prompt. It is the shape of the tool list: <code class="inline">orders.create</code> is enabled; everything else is absent.</p>
+      </div>
+      <div class="col">
+        <div class="card dark">
+          <span class="tag dark">Critical detail</span>
+          <h3 class="mt2">The return URL is a capability.</h3>
+          <p class="tiny">Whoever controls <code class="inline" style="background:#1b2d4d;color:#cfe0ff">return_url</code> controls where the buyer lands after approval. The guard overwrites both <code class="inline" style="background:#1b2d4d;color:#cfe0ff">returnUrl</code> and <code class="inline" style="background:#1b2d4d;color:#cfe0ff">cancelUrl</code>, so a manipulated model cannot redirect the buyer or the capture.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout gold mt4"><b>Latency budget observed in development:</b> order creation is dominated by PayPal's API, not the model. The deterministic path typically completes in under two seconds; the agent path adds the model round-trip. The UI shows a working state rather than a spinner with no explanation.</div>
+  </div>
+  <footer class="pf"><span>02 · The system</span><span><b>11</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 12 AGENT LOOP ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>02 · The system</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">The agent</p>
+    <h1>A very small loop, on purpose</h1>
+    <p class="lead">The agent is not an autonomous planner with memory and a toolbox. It is a single model call with one tool, a bounded number of steps, and a deterministic temperature.</p>
+
+    <div class="card mt3">
+      <div class="flow">
+        <div class="node human">Intent<small>prompt + cap</small></div>
+        <span class="arrow">→</span>
+        <div class="node agent">Model<small>temperature 0</small></div>
+        <span class="arrow">→</span>
+        <div class="node">Tool call<small>create_order</small></div>
+        <span class="arrow">→</span>
+        <div class="node guard">Guard<small>validate args</small></div>
+        <span class="arrow">→</span>
+        <div class="node paypal">PayPal<small>order created</small></div>
+        <span class="arrow">→</span>
+        <div class="node dark">Stop<small>no capture tool</small></div>
+      </div>
+    </div>
+
+    <div class="grid2 mt4">
+      <div>
+        <h2>The call</h2>
+        <pre class="code"><span class="k">const</span> result = <span class="k">await</span> generateText({
+  model: openai(model),
+  system,
+  prompt,
+  tools,          <span class="c">// one tool: create_order</span>
+  maxSteps: <span class="s">4</span>,     <span class="c">// allow one guard retry</span>
+  temperature: <span class="s">0</span>,  <span class="c">// repeatable demo</span>
+});
+
+<span class="c">// The toolkit returns raw PayPal JSON;</span>
+<span class="c">// we keep the last successful create_order.</span>
+<span class="k">const</span> order = lastCreatedOrder(result.toolResults);</pre>
+        <div class="callout mt3"><b>Why <code class="inline">maxSteps: 4</code>?</b> One step to call the tool, one to react if the guard rejects it, one to retry with a legal item, one to write the rationale. More steps add cost and surprise without adding capability.</div>
+      </div>
+      <div>
+        <h2>The system prompt's real job</h2>
+        <p>It does not enforce anything. It makes the good path likely: choose exactly one catalog item, call the tool once, never capture, and reply with a one-sentence rationale. The guard handles the rest.</p>
+        <div class="card tint">
+          <h3>Prompt skeleton</h3>
+          <p class="tiny mb0">"You are AgentCart. Cap: $15. Allowed items: [name — price]. Call <b>create_order</b> exactly once with exact names and prices. Do not capture. If nothing fits, reply NO_MATCH. Then explain your choice in one sentence."</p>
+        </div>
+        <div class="card green mt3">
+          <h3>Why the agent is deliberately underpowered</h3>
+          <ul class="clean green" style="margin-top:2mm">
+            <li>No memory: each errand is stateless.</li>
+            <li>No browsing: the catalog is fixed and trusted.</li>
+            <li>No payment: capture is not in its tool list.</li>
+            <li>No retries beyond four steps.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout gold mt4"><b>Counter-intuitive but deliberate:</b> a weaker agent is a stronger product here. The value is not what the model can do; it is what the architecture lets it do safely.</div>
+  </div>
+  <footer class="pf"><span>02 · The system</span><span><b>12</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 13 OAUTH ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>02 · The system</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">PayPal integration · 1 of 4</p>
+    <h1>OAuth: getting a token without leaking a secret</h1>
+    <p class="lead">Every PayPal call starts with a short-lived bearer token. The client secret never leaves the server; the browser only sees an order ID and an approval URL.</p>
+
+    <div class="card mt3">
+      <div class="flow">
+        <div class="node dark">Server env<small>client_id + secret</small></div>
+        <span class="arrow">→</span>
+        <div class="node">Basic auth<small>base64(id:secret)</small></div>
+        <span class="arrow">→</span>
+        <div class="node paypal">/v1/oauth2/token<small>client_credentials</small></div>
+        <span class="arrow">→</span>
+        <div class="node green">Bearer token<small>cached in memory</small></div>
+        <span class="arrow">→</span>
+        <div class="node paypal">Orders v2<small>Authorization header</small></div>
+      </div>
+    </div>
+
+    <div class="grid2 mt4">
+      <div>
+        <h2>The exchange</h2>
+        <pre class="code">POST /v1/oauth2/token
+Authorization: Basic base64(client_id:secret)
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials
+
+<span class="c">// response</span>
+{ <span class="s">"access_token"</span>: <span class="s">"A21AA..."</span>,
+  <span class="s">"expires_in"</span>: <span class="s">32400</span> }</pre>
+        <p class="tiny mt2">Sandbox tokens are typically valid for several hours. The app refreshes two minutes before expiry, so a long demo never hits a 401 mid-flow.</p>
+      </div>
+      <div>
+        <h2>Token cache policy</h2>
+        <ul class="clean">
+          <li><b>Module-level cache.</b> One token per server instance, reused across requests.</li>
+          <li><b>Expiry margin.</b> Refresh at <code class="inline">expires_in − 120s</code>, not at zero.</li>
+          <li><b>No client exposure.</b> The token is only used in server-side <code class="inline">Authorization</code> headers.</li>
+          <li><b>Cold start safe.</b> A missing cache simply triggers a fresh exchange.</li>
+          <li><b>Environment split.</b> <code class="inline">PAYPAL_ENV</code> selects <code class="inline">api-m.sandbox.paypal.com</code> or the live host; the demo stays on sandbox.</li>
+        </ul>
+        <div class="callout red mt3"><b>Failure:</b> a 401 usually means live keys with <code class="inline">PAYPAL_ENV=sandbox</code>, a rotated secret, or whitespace in the env var. The app surfaces PayPal's error body instead of a generic "something went wrong".</div>
+      </div>
+    </div>
+
+    <div class="grid3 mt4">
+      <div class="stat"><div class="n">0</div><div class="l">tokens stored in the browser or in git</div></div>
+      <div class="stat green"><div class="n">1</div><div class="l">credential exchange per server instance</div></div>
+      <div class="stat gold"><div class="n">120s</div><div class="l">safety margin before token expiry</div></div>
+    </div>
+  </div>
+  <footer class="pf"><span>02 · The system</span><span><b>13</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 14 CREATE ORDER ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>02 · The system</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">PayPal integration · 2 of 4</p>
+    <h1>Creating the order: the payload is the contract</h1>
+    <p class="lead">An order is a promise to capture later. Every field below exists to make the approval screen honest and the capture arithmetic unambiguous.</p>
+
+    <div class="grid2 mt3">
+      <div>
+        <pre class="code">POST /v2/checkout/orders
+{
+  <span class="s">"intent"</span>: <span class="s">"CAPTURE"</span>,
+  <span class="s">"purchase_units"</span>: [{
+    <span class="s">"description"</span>: <span class="s">"Braided 100W USB-C cable"</span>,
+    <span class="s">"amount"</span>: {
+      <span class="s">"currency_code"</span>: <span class="s">"USD"</span>,
+      <span class="s">"value"</span>: <span class="s">"12.99"</span>,
+      <span class="s">"breakdown"</span>: {
+        <span class="s">"item_total"</span>: {
+          <span class="s">"currency_code"</span>: <span class="s">"USD"</span>,
+          <span class="s">"value"</span>: <span class="s">"12.99"</span>
+        }
+      }
+    },
+    <span class="s">"items"</span>: [{
+      <span class="s">"name"</span>: <span class="s">"USB-C Cable 2m"</span>,
+      <span class="s">"quantity"</span>: <span class="s">"1"</span>,
+      <span class="s">"category"</span>: <span class="s">"PHYSICAL_GOODS"</span>,
+      <span class="s">"unit_amount"</span>: {
+        <span class="s">"currency_code"</span>: <span class="s">"USD"</span>,
+        <span class="s">"value"</span>: <span class="s">"12.99"</span>
+      }
+    }]
+  }],
+  <span class="s">"payment_source"</span>: {
+    <span class="s">"paypal"</span>: {
+      <span class="s">"experience_context"</span>: {
+        <span class="s">"brand_name"</span>: <span class="s">"AgentCart"</span>,
+        <span class="s">"user_action"</span>: <span class="s">"PAY_NOW"</span>,
+        <span class="s">"shipping_preference"</span>: <span class="s">"NO_SHIPPING"</span>,
+        <span class="s">"return_url"</span>: <span class="s">"https://app/api/paypal/return"</span>,
+        <span class="s">"cancel_url"</span>: <span class="s">"https://app/api/paypal/cancel"</span>
+      }
+    }
+  }
+}</pre>
+      </div>
+      <div>
+        <h2>Field-by-field</h2>
+        <div class="table-wrap">
+          <table>
+            <tbody>
+              <tr><td><b>intent</b></td><td>CAPTURE, because the human will approve now and settlement follows immediately.</td></tr>
+              <tr><td><b>amount.value</b></td><td>Must equal <code class="inline">item_total</code> when an item breakdown is present, or PayPal rejects it.</td></tr>
+              <tr><td><b>items[]</b></td><td>Gives the buyer a recognisable line item and gives the receipt something human to show.</td></tr>
+              <tr><td><b>brand_name</b></td><td>Shown on the approval screen. The buyer knows which app sent them.</td></tr>
+              <tr><td><b>user_action</b></td><td><code class="inline">PAY_NOW</code> removes an extra confirmation click; consent is already the approval.</td></tr>
+              <tr><td><b>shipping_preference</b></td><td><code class="inline">NO_SHIPPING</code> because this is a digital demo; it avoids an address prompt that has no fulfilment meaning.</td></tr>
+              <tr><td><b>return_url</b></td><td>Where PayPal sends the buyer after approval. Overwritten by the guard; never model-controlled.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout mt3"><b>Response:</b> <code class="inline">{ id, status: "CREATED", links: [{ rel: "approve", href }] }</code>. The app stores nothing; the ID goes to the browser, the link becomes the approval button.</div>
+      </div>
+    </div>
+
+    <div class="callout gold mt4"><b>Subtle correctness detail:</b> the toolkit computes tax and shipping from item arguments, while the deterministic path sends a single line item. Both must produce an <code class="inline">item_total</code> that matches <code class="inline">amount.value</code>. Mismatched arithmetic is the most common cause of a 422 from Orders v2.</div>
+  </div>
+  <footer class="pf"><span>02 · The system</span><span><b>14</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 15 APPROVAL ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>02 · The system</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">PayPal integration · 3 of 4</p>
+    <h1>The approval handoff: leaving home on purpose</h1>
+    <p class="lead">The most important design decision in the flow is that AgentCart does not render its own approval UI. The buyer leaves, authenticates with PayPal, and comes back with a token.</p>
+
+    <div class="card mt3">
+      <div class="flow">
+        <div class="node dark">AgentCart<small>order CREATED</small></div>
+        <span class="arrow">→</span>
+        <div class="node human">Buyer clicks<small>"Approve in PayPal"</small></div>
+        <span class="arrow">→</span>
+        <div class="node paypal">paypal.com<small>sandbox login + consent</small></div>
+        <span class="arrow">→</span>
+        <div class="node paypal">Order APPROVED<small>PayPal records consent</small></div>
+        <span class="arrow">→</span>
+        <div class="node green">return_url<small>?token=ORDER_ID</small></div>
+      </div>
+      <div class="flow mt2" style="justify-content:center">
+        <div class="node human" style="flex:0 0 58mm">Cancel path<small>buyer declines → /api/paypal/cancel</small></div>
+        <span class="arrow">→</span>
+        <div class="node" style="flex:0 0 58mm">Back to app<small>no capture, spend cap untouched</small></div>
+      </div>
+    </div>
+
+    <div class="row mt4">
+      <div class="col">
+        <h2>Why not our own modal?</h2>
+        <p>A custom "Approve" button proves that the user clicked something in our app. It does not prove that the account holder authenticated, that PayPal recorded consent, or that the order belongs to the buyer. A real redirect does all three, and it gives the receipt a verifiable provenance.</p>
+        <p>The handoff also keeps the app out of PCI scope and out of the credential business. We never see a password, a card number, or a one-time code.</p>
+      </div>
+      <div class="col">
+        <div class="card tint">
+          <h3>Redirect mechanics</h3>
+          <ul class="clean" style="margin-top:2mm">
+            <li><b>approve link</b> comes from <code class="inline">links[rel=approve]</code>.</li>
+            <li><b>return_url</b> is absolute and must be reachable by the buyer's browser.</li>
+            <li><b>token</b> in the return query is the PayPal order ID.</li>
+            <li><b>cancel_url</b> is a first-class path, not an afterthought.</li>
+            <li><b>deployed HTTPS</b> is the safe default; localhost is for API testing only.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-wrap mt4">
+      <table>
+        <thead><tr><th style="width:33%">Symptom</th><th style="width:33%">Likely cause</th><th>Fix</th></tr></thead>
+        <tbody>
+          <tr><td>Approval returns to a blank or wrong page</td><td><code class="inline">APP_URL</code> does not match the URL in the browser</td><td>Set <code class="inline">APP_URL</code> to the deployed HTTPS origin and redeploy.</td></tr>
+          <tr><td>PayPal refuses the return URL</td><td>Plain HTTP or unreachable host</td><td>Use the Vercel URL; keep localhost for API-only tests.</td></tr>
+          <tr><td>Buyer sees "Things don't appear to be working"</td><td>Sandbox buyer account missing or logged into the wrong account</td><td>Create a Personal sandbox account and sign in with those credentials.</td></tr>
+          <tr><td>Cancel lands on a 404</td><td>Missing cancel route</td><td>The scaffold ships <code class="inline">/api/paypal/cancel</code>; keep it wired.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout gold mt4"><b>Consent is an API event, not a checkbox.</b> The approval is recorded by PayPal, tied to an authenticated buyer, and returned as an order status. That is why the receipt can be trusted.</div>
+  </div>
+  <footer class="pf"><span>02 · The system</span><span><b>15</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 16 CAPTURE ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>02 · The system</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">PayPal integration · 4 of 4</p>
+    <h1>Capture: the only irreversible step</h1>
+    <p class="lead">Capture moves money. It happens in exactly one place, on the server, after PayPal has redirected an approved order back to the app. The model has no access to it.</p>
+
+    <div class="grid2 mt3">
+      <div>
+        <pre class="code"><span class="c">// app/api/paypal/return/route.ts</span>
+<span class="k">const</span> orderId = url.searchParams.get(<span class="s">"token"</span>);
+<span class="k">if</span> (!orderId) redirect(<span class="s">"/?error=missing_order"</span>);
+
+<span class="k">try</span> {
+  <span class="k">await</span> captureOrder(orderId);
+} <span class="k">catch</span> (error) {
+  <span class="c">// Already captured is a success for the user.</span>
+  <span class="k">if</span> (!/already captured/i.test(message)) {
+    receipt.searchParams.set(<span class="s">"error"</span>, message);
+  }
+}
+<span class="k">return</span> redirect(<span class="s">"/receipt?order="</span> + orderId);</pre>
+        <p class="tiny mt2">The route always lands on the receipt page. The receipt re-fetches the order, so a double refresh shows the completed capture rather than an error.</p>
+      </div>
+      <div>
+        <h2>What capture returns</h2>
+        <div class="table-wrap">
+          <table>
+            <tbody>
+              <tr><td><b>capture.id</b></td><td>The settlement proof. Shown on the receipt and comparable in the PayPal dashboard.</td></tr>
+              <tr><td><b>capture.status</b></td><td><code class="inline">COMPLETED</code> for a successful demo; <code class="inline">PENDING</code> is possible for some funding sources.</td></tr>
+              <tr><td><b>capture.amount</b></td><td>The captured value and currency; should match the order total.</td></tr>
+              <tr><td><b>payer</b></td><td>Name and email of the sandbox buyer who approved.</td></tr>
+              <tr><td><b>create_time</b></td><td>When settlement occurred; displayed on the receipt.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="mt4">Error handling that protects the demo</h2>
+    <div class="grid3">
+      <div class="card green"><h3>ORDER_ALREADY_CAPTURED</h3><p class="tiny mb0">Treated as success. The buyer refreshed or the return route ran twice. The receipt shows the existing capture.</p></div>
+      <div class="card gold"><h3>ORDER_NOT_APPROVED</h3><p class="tiny mb0">The buyer never completed approval. The receipt offers a retry and a link back to the approval flow.</p></div>
+      <div class="card red"><h3>INSTRUMENT_DECLINED</h3><p class="tiny mb0">Sandbox funding issue. The error body is surfaced; the app does not pretend the payment succeeded.</p></div>
+    </div>
+
+    <div class="callout red mt4"><b>Never expose a capture button to the model.</b> Even with a guard, a capture tool widens the blast radius from "create a cart" to "move money". The safe design is not a better capture guard; it is not giving the agent capture at all.</div>
+  </div>
+  <footer class="pf"><span>02 · The system</span><span><b>16</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 17 RECEIPT ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>02 · The system</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Proof</p>
+    <h1>The receipt is the product</h1>
+    <p class="lead">A success toast proves that a request returned 200. A receipt with a PayPal capture ID proves that money moved. The receipt is server-rendered from PayPal's order state, not from client memory.</p>
+
+    <div class="row mt3">
+      <div class="col">
+        <div class="receipt">
+          <div class="rhead"><b>AgentCart · Payment captured</b><span class="tag green">COMPLETED</span></div>
+          <div class="tiny" style="color:#6b7a94">USB-C Cable 2m</div>
+          <div class="amt">$12.99 <span style="font-size:9pt;color:#6b7a94;font-weight:400">USD</span></div>
+          <div class="rrow"><span>Order ID</span><b>4A572180UY881681N</b></div>
+          <div class="rrow"><span>Capture ID</span><b>3C679411S8345214V</b></div>
+          <div class="rrow"><span>Payer</span><b>sandbox.buyer@example.com</b></div>
+          <div class="rrow"><span>Status</span><b>COMPLETED</b></div>
+          <div class="rrow"><span>Environment</span><b>SANDBOX</b></div>
+          <div class="rrow" style="border-bottom:0"><span>Captured at</span><b>11 Nov 2026, 14:32</b></div>
+        </div>
+      </div>
+      <div class="col">
+        <h2>What each field proves</h2>
+        <ul class="clean">
+          <li><b>Order ID</b> — the agent actually created a PayPal order.</li>
+          <li><b>Capture ID</b> — a human approved and the server settled it.</li>
+          <li><b>Payer</b> — the approval came from an authenticated sandbox buyer.</li>
+          <li><b>Status</b> — the state is PayPal's, not ours.</li>
+          <li><b>Timestamp</b> — the event is auditable and ordered.</li>
+        </ul>
+        <div class="callout green mt3"><b>Judge test:</b> open the PayPal sandbox dashboard, find the transaction, and compare both IDs. If they match, the integration is real.</div>
+      </div>
+    </div>
+
+    <div class="divider"></div>
+    <h2>Why server-rendered</h2>
+    <p>The receipt page is a server component that calls <code class="inline">GET /v2/checkout/orders/{id}</code> on every load. Client-side state would be faster, but it would also be forgeable and stale. Server rendering makes the page a live view of PayPal's record — refresh it and the truth is still there.</p>
+
+    <div class="grid3 mt3">
+      <div class="card tint"><h3>Refresh-safe</h3><p class="tiny mb0">Reloading the receipt re-fetches the order; a completed capture remains completed.</p></div>
+      <div class="card tint"><h3>Shareable</h3><p class="tiny mb0">The order ID is in the URL, so the page can be reopened during judging without re-running the agent.</p></div>
+      <div class="card tint"><h3>Honest</h3><p class="tiny mb0">If capture failed, the page says so and offers a retry instead of a fake success state.</p></div>
+    </div>
+
+    <div class="callout gold mt4"><b>Presentation tip:</b> keep one completed receipt URL open in a second tab. If the live payment flow hiccups, you can still show a real transaction and explain the failure mode without losing credibility.</div>
+  </div>
+  <footer class="pf"><span>02 · The system</span><span><b>17</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 18 TRUST MODEL ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>03 · The trust model</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Defence in depth</p>
+    <h1>Four layers between a sentence and your money</h1>
+    <p class="lead">No single control is trusted to be perfect. Each layer catches a different class of failure, and each one is independently testable.</p>
+
+    <div class="stack mt3">
+      <div class="layer d"><span class="no">1</span><div><b>Spend cap</b><span>Arithmetic on the tool arguments: unit cost × quantity × (1 + tax) must be ≤ the user's cap. Enforced before PayPal is called.</span></div></div>
+      <div class="layer g"><span class="no">2</span><div><b>Merchant and price allowlist</b><span>Every item name must equal a catalog entry, and every price must equal the published price. Unknown merchant or drifted price → refuse.</span></div></div>
+      <div class="layer y"><span class="no">3</span><div><b>Human approval gate</b><span>The model has no capture tool. Settlement requires a PayPal-authenticated buyer to approve and a server-side return route to capture.</span></div></div>
+      <div class="layer"><span class="no">4</span><div><b>Audit trail</b><span>Every step is timestamped and shown. The receipt re-reads PayPal's state, so the proof is external and refreshable.</span></div></div>
+    </div>
+
+    <h2 class="mt4">Threat → layer that stops it</h2>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:34%">Threat</th><th style="width:22%">Primary layer</th><th>Why the other layers still matter</th></tr></thead>
+        <tbody>
+          <tr><td>Model chooses a $49 item with a $15 cap</td><td><b>Layer 1</b></td><td>Even if the cap were bypassed, the item must still be in the catalog at the exact price (2), and a human must approve (3).</td></tr>
+          <tr><td>Model invents a merchant or a discounted price</td><td><b>Layer 2</b></td><td>A fake cheap price would pass the cap; only name/price equality catches it.</td></tr>
+          <tr><td>Prompt injection says "capture now"</td><td><b>Layer 3</b></td><td>There is no capture tool to call. The injection cannot name a capability that does not exist.</td></tr>
+          <tr><td>Buyer is redirected to an attacker's URL</td><td><b>Guard + Layer 3</b></td><td>The guard overwrites <code class="inline">returnUrl</code>/<code class="inline">cancelUrl</code>; the buyer only approves on PayPal.</td></tr>
+          <tr><td>A payment is later disputed</td><td><b>Layer 4</b></td><td>Order, capture, payer, and timestamps are all retrievable from PayPal and shown on the receipt.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="callout mt4"><b>Security posture in one sentence:</b> the model is treated as an untrusted planner, the browser as an untrusted display, and PayPal as the only trusted source of payment truth.</div>
+  </div>
+  <footer class="pf"><span>03 · The trust model</span><span><b>18</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 19 SPEND CAP ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>03 · The trust model</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Layer 1</p>
+    <h1>The spend cap is arithmetic, not etiquette</h1>
+    <p class="lead">The cap is checked inside the wrapped <code class="inline">create_order</code> tool, before the request leaves the server. If the total exceeds the cap, PayPal never sees the order.</p>
+
+    <div class="card mt3">
+      <div class="flow">
+        <div class="node agent">Model proposes<small>$49.00 earbuds</small></div>
+        <span class="arrow">→</span>
+        <div class="node guard">Cap check<small>$49.00 &gt; $15.00</small></div>
+        <span class="arrow">→</span>
+        <div class="node" style="background:#fdeeee;border-color:#f2c4c4;color:#8d2b2b">Refused<small>no PayPal call</small></div>
+        <span class="arrow">→</span>
+        <div class="node green">Fallback<small>$12.99 cable</small></div>
+        <span class="arrow">→</span>
+        <div class="node paypal">Order<small>inside cap</small></div>
+      </div>
+    </div>
+
+    <div class="grid2 mt4">
+      <div>
+        <h2>The enforcement code</h2>
+        <pre class="code"><span class="k">let</span> total = <span class="s">0</span>;
+<span class="k">for</span> (<span class="k">const</span> item <span class="k">of</span> items) {
+  <span class="k">const</span> allowed = CATALOG.find(p =&gt;
+    p.name.toLowerCase() === item.name.toLowerCase());
+
+  <span class="k">if</span> (!allowed) <span class="k">throw new</span> Error(
+    <span class="s">`Guard: "${item.name}" is not allowlisted.`</span>);
+
+  <span class="k">if</span> (Math.abs(item.itemCost - allowed.price) &gt; <span class="s">0.009</span>)
+    <span class="k">throw new</span> Error(<span class="s">"Guard: price mismatch."</span>);
+
+  total += item.itemCost * (item.quantity ?? <span class="s">1</span>)
+         * (<span class="s">1</span> + (item.taxPercent ?? <span class="s">0</span>) / <span class="s">100</span>);
+}
+
+<span class="k">if</span> (total &gt; budget + <span class="s">0.005</span>)
+  <span class="k">throw new</span> Error(<span class="s">`Guard: exceeds $${budget} cap.`</span>);</pre>
+      </div>
+      <div>
+        <h2>Why this is hard to bypass</h2>
+        <ul class="clean">
+          <li><b>It runs on the arguments, not the prose.</b> The model cannot persuade arithmetic.</li>
+          <li><b>It runs before the network call.</b> A rejected proposal never becomes an order.</li>
+          <li><b>It includes quantity and tax.</b> A $5 item × 4 is still a $20 purchase.</li>
+          <li><b>It uses a small epsilon.</b> Floating point is not allowed to turn $15.00 into a rejection.</li>
+          <li><b>It is paired with the allowlist.</b> A fake cheap price cannot sneak under the cap.</li>
+        </ul>
+        <div class="callout gold mt3"><b>Prompt-only alternative:</b> "Never spend more than $15." A model can ignore it, and no test can prove that it won't. The cap code can be unit-tested with a single assertion.</div>
+      </div>
+    </div>
+
+    <div class="grid3 mt4">
+      <div class="stat"><div class="n">$12.99</div><div class="l">passes: inside the $15 cap</div></div>
+      <div class="stat gold"><div class="n">$24.50</div><div class="l">blocked: lamp exceeds the cap</div></div>
+      <div class="stat dark"><div class="n">$49.00</div><div class="l">blocked: agent's tempting upgrade</div></div>
+    </div>
+
+    <div class="callout red mt4"><b>What the cap does not protect:</b> a compromised server, stolen PayPal credentials, or a user who sets the cap to $500. It bounds the model's authority, not the entire system's. That is why layers 2–4 exist.</div>
+  </div>
+  <footer class="pf"><span>03 · The trust model</span><span><b>19</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 20 ALLOWLIST ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>03 · The trust model</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Layer 2</p>
+    <h1>The catalog is the merchant allowlist</h1>
+    <p class="lead">There is no product search and no merchant API. The agent can only buy six things, at six exact prices. This is the smallest possible commerce surface that still feels like shopping.</p>
+
+    <div class="grid2 mt3">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Item</th><th style="width:22%">Price</th><th style="width:20%">Allowed?</th></tr></thead>
+          <tbody>
+            <tr><td>USB-C Cable 2m</td><td>$12.99</td><td class="ok">yes</td></tr>
+            <tr><td>Aluminum Phone Stand</td><td>$11.25</td><td class="ok">yes</td></tr>
+            <tr><td>A5 Dot-Grid Notebook</td><td>$8.75</td><td class="ok">yes</td></tr>
+            <tr><td>Single-Origin Coffee Beans</td><td>$14.20</td><td class="ok">yes</td></tr>
+            <tr><td>Warm LED Desk Lamp</td><td>$24.50</td><td class="warn">only if cap ≥ $24.50</td></tr>
+            <tr><td>Noise-Cancelling Earbuds</td><td>$49.00</td><td class="warn">only if cap ≥ $49.00</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <h2>Two equality checks</h2>
+        <p>The guard does not do fuzzy matching, category checks, or "close enough" pricing. It requires the exact catalog name (case-insensitive) and a price within one cent of the published value.</p>
+        <pre class="code"><span class="c">// name must exist</span>
+<span class="k">const</span> allowed = CATALOG.find(p =&gt;
+  p.name.toLowerCase() === item.name.toLowerCase());
+
+<span class="c">// price must not drift</span>
+<span class="k">if</span> (Math.abs(item.itemCost - allowed.price) &gt; <span class="s">0.009</span>)
+  <span class="k">throw new</span> Error(<span class="s">"Guard: price mismatch."</span>);</pre>
+        <p class="tiny mt2">A model that invents "USB-C Cable (discount)" or prices it at $1.99 fails both checks. That is the point.</p>
+      </div>
+    </div>
+
+    <h2 class="mt4">Why an allowlist beats a search API</h2>
+    <div class="grid3">
+      <div class="card tint"><h3>Bounded supply</h3><p class="tiny mb0">A search API returns an unbounded set of merchants, each with its own trust level. An allowlist makes the trust decision once, in code.</p></div>
+      <div class="card tint"><h3>No scrape surface</h3><p class="tiny mb0">There is no HTML to parse and no product description that can carry an injection. The catalog is local and typed.</p></div>
+      <div class="card tint"><h3>Deterministic fallback</h3><p class="tiny mb0">The same table powers the keyword picker, so the safe path can always find an affordable item without an LLM.</p></div>
+    </div>
+
+    <div class="callout mt4"><b>Production evolution:</b> replace the static catalog with a signed merchant feed, then keep the exact-name/exact-price check as the final gate. The allowlist is the invariant; the source of the list is an implementation detail.</div>
+
+    <div class="callout red mt3"><b>Anti-pattern:</b> trusting the model's <code class="inline">itemCost</code> because the total is under the cap. A $1 price on a $49 item is exactly how a cap gets bypassed. Price equality is not redundant with the cap; it is what makes the cap meaningful.</div>
+  </div>
+  <footer class="pf"><span>03 · The trust model</span><span><b>20</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 21 HUMAN GATE ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>03 · The trust model</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Layer 3</p>
+    <h1>The human gate is an absence, not a button</h1>
+    <p class="lead">The strongest control in AgentCart is a tool that does not exist. The agent can create an order; it has no capability to capture one. Settlement requires a different code path with a different trigger.</p>
+
+    <div class="card mt3">
+      <div class="flow">
+        <div class="node agent">Agent<small>tools: create_order</small></div>
+        <span class="arrow">→</span>
+        <div class="node paypal">Order CREATED<small>money untouched</small></div>
+        <span class="arrow">→</span>
+        <div class="node human">Human approves<small>PayPal authentication</small></div>
+        <span class="arrow">→</span>
+        <div class="node green">Server captures<small>return route only</small></div>
+        <span class="arrow">→</span>
+        <div class="node dark">COMPLETED<small>capture ID</small></div>
+      </div>
+      <div class="flow mt2" style="justify-content:center">
+        <div class="node" style="flex:0 0 62mm; background:#fdeeee; border-color:#f2c4c4; color:#8d2b2b; text-decoration:line-through">capture_order tool for the model</div>
+        <span class="arrow">→</span>
+        <div class="node" style="flex:0 0 48mm">does not exist<small>by design</small></div>
+      </div>
+    </div>
+
+    <div class="row mt4">
+      <div class="col">
+        <h2>Separation of powers</h2>
+        <p>The agent proposes a purchase. The guard authorises the proposal. The human authorises the payment. The server performs settlement. No single actor can complete the transaction alone.</p>
+        <p>This is the same pattern as a finance team: an analyst prepares a payment, a controller approves it, and the bank executes it. The model is the analyst. It is allowed to be enthusiastic, but it is not allowed to be the controller.</p>
+      </div>
+      <div class="col">
+        <div class="card gold">
+          <h3>What the approval proves</h3>
+          <ul class="clean gold" style="margin-top:2mm">
+            <li>The account holder authenticated with PayPal.</li>
+            <li>The buyer saw the merchant, item, and amount.</li>
+            <li>PayPal recorded consent on the order.</li>
+            <li>The approval is tied to a specific order ID.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="callout red mt4"><b>Do not replace this with a checkbox.</b> A local "I approve" toggle proves only that a click happened in our UI. It does not authenticate the buyer, does not record consent with PayPal, and cannot be verified by a judge. It is a weaker control pretending to be the same one.</div>
+
+    <div class="grid3 mt3">
+      <div class="stat"><div class="n">1</div><div class="l">tool available to the model</div></div>
+      <div class="stat green"><div class="n">1</div><div class="l">route allowed to capture</div></div>
+      <div class="stat gold"><div class="n">2</div><div class="l">independent consents: guard + human</div></div>
+    </div>
+  </div>
+  <footer class="pf"><span>03 · The trust model</span><span><b>21</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 22 AUDIT ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>03 · The trust model</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Layer 4</p>
+    <h1>The audit trail makes trust inspectable</h1>
+    <p class="lead">Every important step gets a timestamp and a short detail string. The UI shows it next to the order, so a judge can see the system's reasoning without reading server logs.</p>
+
+    <div class="grid2 mt3">
+      <div class="card">
+        <h3>Sample trail from a real run</h3>
+        <div class="divider" style="margin:2.5mm 0"></div>
+        <div class="tree">
+          <div class="tree-row"><div class="tree-q" style="flex:0 0 12mm; background:#0b6fe8">14:31:02</div><div class="tree-a"><div class="yes"><b>Request received</b><br />"USB-C cable under $15" · cap $15.00</div></div></div>
+          <div class="tree-row"><div class="tree-q" style="flex:0 0 12mm; background:#0b6fe8">14:31:03</div><div class="tree-a"><div><b>Agent is shopping</b><br />model gpt-4o-mini · Agent Toolkit</div></div></div>
+          <div class="tree-row"><div class="tree-q" style="flex:0 0 12mm; background:#0e9f6e">14:31:04</div><div class="tree-a"><div class="yes"><b>Cap + allowlist passed</b><br />1 item · $12.99 of $15.00</div></div></div>
+          <div class="tree-row"><div class="tree-q" style="flex:0 0 12mm; background:#0b6fe8">14:31:05</div><div class="tree-a"><div><b>PayPal order created</b><br />4A572180UY881681N</div></div></div>
+          <div class="tree-row"><div class="tree-q" style="flex:0 0 12mm; background:#c98a00">14:31:28</div><div class="tree-a"><div class="yes"><b>Human approved</b><br />return_url received · capture pending</div></div></div>
+          <div class="tree-row"><div class="tree-q" style="flex:0 0 12mm; background:#0e9f6e">14:31:29</div><div class="tree-a"><div class="yes"><b>Capture completed</b><br />3C679411S8345214V</div></div></div>
+        </div>
+      </div>
+      <div>
+        <h2>What we log</h2>
+        <ul class="clean">
+          <li><b>Intent and cap</b> — the user's exact request and budget.</li>
+          <li><b>Mode</b> — agent or safe checkout, plus the model name.</li>
+          <li><b>Guard decision</b> — pass or the rejection reason.</li>
+          <li><b>Order ID</b> — the join key to PayPal.</li>
+          <li><b>Fallback reason</b> — why the agent path was abandoned.</li>
+          <li><b>Capture ID and status</b> — settlement proof.</li>
+        </ul>
+        <h2 class="mt3">What we never log</h2>
+        <ul class="clean gold">
+          <li>Client secret or bearer token.</li>
+          <li>Full buyer credentials or card data.</li>
+          <li>Raw model prompts containing personal data.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="row mt4">
+      <div class="col card green"><h3>Today: in-response trail</h3><p class="tiny mb0">The trail is assembled per request and returned with the result. It is perfect for a demo and requires no storage.</p></div>
+      <div class="col card tint"><h3>Production: append-only events</h3><p class="tiny mb0">Emit structured events with a correlation ID to a log store. Add PayPal webhooks for asynchronous state changes.</p></div>
+      <div class="col card gold"><h3>Why it wins points</h3><p class="tiny mb0">It turns an invisible claim ("the agent is safe") into a visible, ordered narrative that a non-engineer can follow.</p></div>
+    </div>
+
+    <div class="callout mt4"><b>Observability principle:</b> log decisions, not just outcomes. "Order created" is less useful than "guard passed $12.99 of $15.00, then order created". The second tells you why the system behaved the way it did.</div>
+  </div>
+  <footer class="pf"><span>03 · The trust model</span><span><b>22</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 23 FALLBACK ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>03 · The trust model</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Reliability</p>
+    <h1>The fallback is the demo's second gear</h1>
+    <p class="lead">Every LLM call is optional. When the model is missing, slow, or blocked, the deterministic path picks an item with keyword scoring and calls the same PayPal APIs.</p>
+
+    <div class="tree mt3">
+      <div class="tree-row"><div class="tree-q">Is <span class="mono">OPENAI_API_KEY</span> set and the agent enabled?</div><div class="tree-a"><div class="yes"><b>Yes</b> → run the agent path</div><div class="no"><b>No</b> → safe checkout</div></div></div>
+      <div class="tree-row"><div class="tree-q">Did the model return a valid <span class="mono">create_order</span> result?</div><div class="tree-a"><div class="yes"><b>Yes</b> → use that order</div><div class="no"><b>No</b> → safe checkout</div></div></div>
+      <div class="tree-row"><div class="tree-q">Did the guard accept the item, price, and total?</div><div class="tree-a"><div class="yes"><b>Yes</b> → proceed</div><div class="no"><b>No</b> → safe checkout</div></div></div>
+      <div class="tree-row"><div class="tree-q">Is there a catalog item under the cap?</div><div class="tree-a"><div class="yes"><b>Yes</b> → create order</div><div class="no"><b>No</b> → clear error</div></div></div>
+      <div class="tree-row"><div class="tree-q">Did PayPal return an approve link?</div><div class="tree-a"><div class="yes"><b>Yes</b> → hand off to approval</div><div class="no"><b>No</b> → surface PayPal error</div></div></div>
+    </div>
+
+    <div class="grid2 mt4">
+      <div>
+        <h2>The picker</h2>
+        <p>Keyword scoring over the catalog, filtered by the cap, with a cheapest-fit tiebreaker. It is intentionally simple: the goal is a correct, explainable choice, not a recommendation engine.</p>
+        <pre class="code"><span class="k">const</span> affordable = CATALOG.filter(p =&gt; p.price &lt;= budget);
+<span class="k">const</span> ranked = affordable
+  .map(p =&gt; ({ p, score: keywordScore(p, prompt) }))
+  .sort((a, b) =&gt; b.score - a.score || a.p.price - b.p.price);
+
+<span class="k">return</span> ranked[0]?.score &gt; <span class="s">0</span>
+  ? ranked[0].p
+  : cheapest(affordable); <span class="c">// safest default</span></pre>
+      </div>
+      <div>
+        <h2>One contract, two engines</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Field</th><th>Agent mode</th><th>Safe mode</th></tr></thead>
+            <tbody>
+              <tr><td><b>item</b></td><td>Model's catalog choice</td><td>Keyword pick</td></tr>
+              <tr><td><b>rationale</b></td><td>Model's sentence</td><td>Templated explanation</td></tr>
+              <tr><td><b>orderId</b></td><td>PayPal response</td><td>PayPal response</td></tr>
+              <tr><td><b>approveUrl</b></td><td><code class="inline">links[approve]</code></td><td><code class="inline">links[approve]</code></td></tr>
+              <tr><td><b>steps</b></td><td>Full trail + fallback note</td><td>Full trail</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout green mt3"><b>Identical UI.</b> The only visible difference is the mode badge. The user gets the same approval and receipt whether or not the model was involved.</div>
+      </div>
+    </div>
+
+    <div class="callout gold mt4"><b>Why this is a feature, not an apology:</b> it proves the architecture is not a thin wrapper around a model. The PayPal integration stands on its own, and the model is an optional reasoning layer on top.</div>
+  </div>
+  <footer class="pf"><span>03 · The trust model</span><span><b>23</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 24 FAILURE MATRIX ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>03 · The trust model</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Failure modes</p>
+    <h1>What breaks, what the user sees, what the demo does</h1>
+    <p class="lead">A mature prototype is judged by its bad days. This matrix was written before the demo, and every row has a defined behaviour rather than a shrug.</p>
+
+    <div class="table-wrap mt3">
+      <table>
+        <thead><tr><th style="width:28%">Failure</th><th style="width:27%">Symptom</th><th style="width:30%">System behaviour</th><th>Demo impact</th></tr></thead>
+        <tbody>
+          <tr><td><b>No model key</b></td><td>Agent path unavailable</td><td>Safe checkout runs automatically; trail explains why.</td><td class="ok">green</td></tr>
+          <tr><td><b>Model timeout / rate limit</b></td><td>No tool result</td><td>Caught; fallback creates the order.</td><td class="ok">green</td></tr>
+          <tr><td><b>Model overspends</b></td><td>Guard throws</td><td>Order refused before PayPal; fallback picks an affordable item.</td><td class="ok">green</td></tr>
+          <tr><td><b>Model invents a merchant</b></td><td>Allowlist miss</td><td>Refused; fallback picks a catalog item.</td><td class="ok">green</td></tr>
+          <tr><td><b>Bad PayPal credentials</b></td><td>400 with PayPal's message</td><td>No order; UI shows a fixable setup error.</td><td class="bad">red</td></tr>
+          <tr><td><b>Wrong <span class="mono">APP_URL</span></b></td><td>Approval returns nowhere</td><td>Order exists; capture never runs. Fix env and retry.</td><td class="bad">red</td></tr>
+          <tr><td><b>Buyer cancels</b></td><td>Cancel URL hit</td><td>No capture; clear banner; cap untouched.</td><td class="warn">amber</td></tr>
+          <tr><td><b>Duplicate return</b></td><td><span class="mono">ORDER_ALREADY_CAPTURED</span></td><td>Treated as success; receipt re-fetches completed capture.</td><td class="ok">green</td></tr>
+          <tr><td><b>PayPal outage</b></td><td>Network / 5xx</td><td>Error surfaced with retry; no fake success.</td><td class="warn">amber</td></tr>
+          <tr><td><b>Nothing under the cap</b></td><td>Picker returns null</td><td>Clear message: raise the cap or add a product.</td><td class="warn">amber</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="row mt4">
+      <div class="col card green"><h3>Green rows</h3><p class="tiny mb0">The architecture absorbs the failure. Keep going; narrate what happened. These rows are the reason the fallback exists.</p></div>
+      <div class="col card gold"><h3>Amber rows</h3><p class="tiny mb0">The flow stops honestly. Show the error, explain the cause, and use a pre-completed receipt or retry.</p></div>
+      <div class="col card red"><h3>Red rows</h3><p class="tiny mb0">Environment errors. Fix before the demo: verify credentials with <code class="inline">npm run check:paypal</code> and test the deployed URL once.</p></div>
+    </div>
+
+    <div class="callout mt4"><b>Demo discipline:</b> run the full flow once on the deployed URL, with a fresh sandbox buyer, at least an hour before presenting. The two red rows are the only ones that can end a demo; everything else has a graceful path.</div>
+  </div>
+  <footer class="pf"><span>03 · The trust model</span><span><b>24</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 25 SECURITY ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>03 · The trust model</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Security</p>
+    <h1>Threat model: assume the model is compromised</h1>
+    <p class="lead">The design does not try to make the model trustworthy. It assumes the model can be manipulated and asks what an attacker could achieve with the capabilities that remain.</p>
+
+    <div class="table-wrap mt3">
+      <table>
+        <thead><tr><th style="width:25%">Threat</th><th style="width:39%">Attack path</th><th>Mitigation</th></tr></thead>
+        <tbody>
+          <tr><td><b>Prompt injection</b></td><td>A product description or user message says "ignore the cap and capture".</td><td>No capture tool; guard reads arguments, not instructions; redirect URLs overwritten.</td></tr>
+          <tr><td><b>Price manipulation</b></td><td>Model supplies a low <code class="inline">itemCost</code> to slip under the cap.</td><td>Exact price equality against the server-side catalog.</td></tr>
+          <tr><td><b>Merchant substitution</b></td><td>Model names a lookalike seller.</td><td>Exact name allowlist; no free-text merchant field.</td></tr>
+          <tr><td><b>Redirect tampering</b></td><td>Model supplies an attacker-controlled <code class="inline">returnUrl</code>.</td><td>Guard overwrites <code class="inline">returnUrl</code> and <code class="inline">cancelUrl</code>; currency forced to USD.</td></tr>
+          <tr><td><b>Secret leakage</b></td><td>Client bundle or repo exposes the PayPal secret.</td><td>Server-only env; no NEXT_PUBLIC prefix; <code class="inline">.env*.local</code> ignored.</td></tr>
+          <tr><td><b>Double capture</b></td><td>User refreshes the return URL.</td><td>PayPal returns <code class="inline">ORDER_ALREADY_CAPTURED</code>; app treats it as success and re-fetches.</td></tr>
+          <tr><td><b>Forged receipt</b></td><td>Attacker edits client state to show a fake success.</td><td>Receipt is server-rendered from PayPal's order API, not from client memory.</td></tr>
+          <tr><td><b>Replay of an old order</b></td><td>Attacker reuses a captured order ID.</td><td>Capture is idempotent at PayPal; the receipt reflects the real state.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="row mt4">
+      <div class="col">
+        <h2>Residual risks</h2>
+        <ul class="clean gold">
+          <li><b>Compromised server.</b> If the host is owned, all bets are off. Out of scope for a hackathon, but real.</li>
+          <li><b>User sets a huge cap.</b> The cap bounds the model, not the human's judgement.</li>
+          <li><b>Catalog compromise.</b> A malicious price in <code class="inline">catalog.ts</code> would be trusted. In production, sign the feed.</li>
+          <li><b>Model provider logging.</b> Prompts may contain user text; do not send secrets to the model.</li>
+        </ul>
+      </div>
+      <div class="col card dark">
+        <span class="tag dark">Rule</span>
+        <h3 class="mt2">Never give the model a URL that receives money or identity.</h3>
+        <p class="tiny">The guard overwrites <code class="inline" style="background:#1b2d4d;color:#cfe0ff">returnUrl</code> and <code class="inline" style="background:#1b2d4d;color:#cfe0ff">cancelUrl</code> because those values decide where the buyer goes after consent. A manipulated redirect is a phishing primitive, not just a bug.</p>
+        <div class="divider" style="background:#27405f"></div>
+        <p class="tiny mb0">The same logic applies to amounts: never let the model supply a currency, a total, or a capture flag that the server has not recomputed.</p>
+      </div>
+    </div>
+
+    <div class="callout red mt4"><b>Security is a property of the system, not the prompt.</b> If your only defence is a sentence the model can read, an attacker who can write a sentence can defeat it.</div>
+  </div>
+  <footer class="pf"><span>03 · The trust model</span><span><b>25</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 26 DATA MODEL ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>04 · The craft</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Data model</p>
+    <h1>Four entities, one of them is PayPal's</h1>
+    <p class="lead">AgentCart keeps almost no state of its own. The errand is ephemeral, the audit trail is returned with the result, and the order and capture live inside PayPal.</p>
+
+    <div class="grid4 mt3">
+      <div class="card tint"><span class="tag">Ephemeral</span><h3 class="mt2">Errand</h3><p class="tiny mb0">prompt, budget, mode, rationale, steps. Lives for one request/response cycle.</p></div>
+      <div class="card green"><span class="tag green">PayPal</span><h3 class="mt2">Order</h3><p class="tiny mb0">id, status, purchase_units, links, payer. Created by the agent or the safe path.</p></div>
+      <div class="card green"><span class="tag green">PayPal</span><h3 class="mt2">Capture</h3><p class="tiny mb0">id, status, amount, create_time. Exists only after human approval and server capture.</p></div>
+      <div class="card gold"><span class="tag gold">Derived</span><h3 class="mt2">AuditStep</h3><p class="tiny mb0">at, label, detail. Built during the request and rendered in the UI.</p></div>
+    </div>
+
+    <h2 class="mt4">Order state machine</h2>
+    <div class="state">
+      <div class="s created">CREATED<small>order exists, no consent</small></div>
+      <span class="arrow">→</span>
+      <div class="s approved">APPROVED<small>buyer consented in PayPal</small></div>
+      <span class="arrow">→</span>
+      <div class="s done">COMPLETED<small>capture succeeded</small></div>
+    </div>
+    <div class="state mt2" style="justify-content:center">
+      <div class="s bad" style="flex:0 0 56mm">VOIDED / EXPIRED<small>never captured</small></div>
+      <span class="arrow" style="flex:0 0 10mm">·</span>
+      <div class="s bad" style="flex:0 0 56mm">CAPTURE FAILED<small>receipt shows retry</small></div>
+    </div>
+
+    <p class="mt3">The app never writes <code class="inline">status</code>. It reads it from PayPal after creation and after capture. This is why the receipt survives a refresh and why a forged client state cannot fake a payment: the page asks PayPal, not the browser.</p>
+
+    <div class="grid2 mt4">
+      <div class="card">
+        <h3>Why no database</h3>
+        <ul class="clean" style="margin-top:2mm">
+          <li><b>One source of truth.</b> PayPal already stores the order and capture.</li>
+          <li><b>No migration risk.</b> Nothing to provision before a demo.</li>
+          <li><b>Shareable proof.</b> The order ID in the URL is enough to re-render the receipt.</li>
+          <li><b>Honest failure.</b> If PayPal is down, we cannot invent state anyway.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>When a database becomes necessary</h3>
+        <ul class="clean gold" style="margin-top:2mm">
+          <li>Multiple errands per user with history.</li>
+          <li>Webhook events that arrive after the response.</li>
+          <li>Disputes and refunds with their own lifecycle.</li>
+          <li>Analytics across users and merchants.</li>
+        </ul>
+        <p class="tiny mt2 mb0">Add it as an append-only event log, not as a second source of payment truth.</p>
+      </div>
+    </div>
+
+    <div class="callout mt4"><b>Design rule:</b> every piece of state must have an owner. The browser owns form state, the server owns secrets and request-scoped data, and PayPal owns money state. Ambiguity here is how prototypes develop "ghost" orders.</div>
+  </div>
+  <footer class="pf"><span>04 · The craft</span><span><b>26</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 27 API ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>04 · The craft</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">API contracts</p>
+    <h1>Three endpoints and one shared result shape</h1>
+    <p class="lead">The browser only talks to three routes. Everything else is server-to-server with PayPal. Contracts are small enough to hold in your head during a demo.</p>
+
+    <div class="table-wrap mt3">
+      <table>
+        <thead><tr><th style="width:30%">Endpoint</th><th style="width:12%">Method</th><th style="width:28%">Input</th><th>Output</th></tr></thead>
+        <tbody>
+          <tr><td><code class="inline">/api/checkout</code></td><td>POST</td><td><code class="inline">{ prompt, budget }</code></td><td><code class="inline">CheckoutResult</code> or <code class="inline">{ error }</code></td></tr>
+          <tr><td><code class="inline">/api/paypal/return</code></td><td>GET</td><td><code class="inline">?token=ORDER_ID</code></td><td>302 to <code class="inline">/receipt?order=…</code></td></tr>
+          <tr><td><code class="inline">/api/paypal/cancel</code></td><td>GET</td><td>none</td><td>302 to <code class="inline">/?canceled=1</code></td></tr>
+          <tr><td><code class="inline">/receipt</code></td><td>GET</td><td><code class="inline">?order=ORDER_ID</code></td><td>Server-rendered HTML</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="grid2 mt4">
+      <div>
+        <h2>Request</h2>
+        <pre class="code">POST /api/checkout
+Content-Type: application/json
+
+{
+  <span class="s">"prompt"</span>: <span class="s">"Buy a USB-C cable under $15"</span>,
+  <span class="s">"budget"</span>: <span class="s">15</span>
+}</pre>
+        <h2 class="mt3">Success</h2>
+        <pre class="code">{
+  <span class="s">"mode"</span>: <span class="s">"agent"</span>,
+  <span class="s">"orderId"</span>: <span class="s">"4A572180UY881681N"</span>,
+  <span class="s">"approveUrl"</span>: <span class="s">"https://www.sandbox.paypal.com/..."</span>,
+  <span class="s">"item"</span>: { <span class="s">"name"</span>: <span class="s">"USB-C Cable 2m"</span>, <span class="s">"price"</span>: <span class="s">12.99</span> },
+  <span class="s">"rationale"</span>: <span class="s">"Best match inside your cap."</span>,
+  <span class="s">"steps"</span>: [ { <span class="s">"at"</span>: <span class="s">"2026-11-11T14:31:02Z"</span>, <span class="s">"label"</span>: <span class="s">"Request received"</span> } ]
+}</pre>
+      </div>
+      <div>
+        <h2>Error handling</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th style="width:18%">Status</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td><b>400</b></td><td>Empty prompt, missing credentials, guard rejection with no fallback, or nothing under the cap.</td></tr>
+              <tr><td><b>401</b></td><td>PayPal rejected the token exchange; usually an environment or key mismatch.</td></tr>
+              <tr><td><b>422</b></td><td>PayPal rejected the order payload; usually an amount/breakdown mismatch.</td></tr>
+              <tr><td><b>500</b></td><td>Unexpected server failure. The message is safe to show; no secrets.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout mt3"><b>Contract test:</b> the UI never branches on <code class="inline">mode</code> for correctness. Both modes return the same fields, so a fallback can happen mid-request without a client change.</div>
+        <div class="callout gold mt3"><b>Validation:</b> the budget is coerced to a positive number and clamped to $500. The prompt is trimmed and length-bounded by the model provider's limits.</div>
+      </div>
+    </div>
+
+    <div class="callout red mt4"><b>Never accept an amount from the client.</b> The browser sends intent and a cap, not a price. If the client could set the amount, the "spend cap" would be trivially bypassed and the allowlist would be decorative.</div>
+  </div>
+  <footer class="pf"><span>04 · The craft</span><span><b>27</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 28 IMPLEMENTATION ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>04 · The craft</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Implementation map</p>
+    <h1>Where every decision actually lives</h1>
+    <p class="lead">The codebase is small enough to read in one sitting. Each file has one job, and each trust claim points to a specific function.</p>
+
+    <div class="grid2 mt3">
+      <div>
+        <pre class="code">app/
+  page.tsx                errand UI, approval queue, audit trail
+  receipt/page.tsx        server-rendered proof from PayPal
+  api/checkout/route.ts   input validation -> runCheckout
+  api/paypal/return/      capture, then redirect to receipt
+  api/paypal/cancel/      cancel path, no capture
+lib/
+  agent.ts                agent + guard + deterministic fallback
+  paypal.ts               token cache, create/get/capture
+  catalog.ts              demo catalog = merchant allowlist
+  types.ts                shared CheckoutResult contract
+scripts/
+  paypal-check.mjs        credential smoke test</pre>
+      </div>
+      <div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th style="width:38%">If you want to change…</th><th>Edit</th></tr></thead>
+            <tbody>
+              <tr><td>The spend cap logic</td><td><code class="inline">lib/agent.ts</code> → guarded <code class="inline">execute</code></td></tr>
+              <tr><td>The allowed products/prices</td><td><code class="inline">lib/catalog.ts</code></td></tr>
+              <tr><td>The model or prompt</td><td><code class="inline">lib/agent.ts</code> → <code class="inline">runAgent</code></td></tr>
+              <tr><td>The PayPal API version</td><td><code class="inline">lib/paypal.ts</code></td></tr>
+              <tr><td>What the receipt shows</td><td><code class="inline">app/receipt/page.tsx</code></td></tr>
+              <tr><td>The visual design</td><td><code class="inline">app/globals.css</code></td></tr>
+              <tr><td>Judge credentials</td><td><code class="inline">README.md</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <h2 class="mt4">The three functions that matter</h2>
+    <div class="grid3">
+      <div class="card tint"><h3><code class="inline">runAgent()</code></h3><p class="tiny mb0">Builds the toolkit, wraps <code class="inline">create_order</code>, calls the model with one tool, extracts the last successful order, and returns the shared result.</p></div>
+      <div class="card green"><h3><code class="inline">guarded execute()</code></h3><p class="tiny mb0">Validates every item against the catalog, computes the total, checks the cap, overrides the redirect URLs and currency, then delegates to the real tool.</p></div>
+      <div class="card gold"><h3><code class="inline">captureOrder()</code></h3><p class="tiny mb0">Exchanges for a token, posts to <code class="inline">/capture</code>, and surfaces PayPal's issue code. Called only from the return route.</p></div>
+    </div>
+
+    <div class="callout mt4"><b>Dependency choice:</b> <code class="inline">ai@4</code> is pinned because the Agent Toolkit is built against AI SDK v4 (<code class="inline">maxSteps</code>, <code class="inline">toolResults</code>). Upgrading to v5 means switching to <code class="inline">stopWhen: stepCountIs(n)</code> and reading <code class="inline">toolResults[].output</code>. Pin the version; do not discover this during the demo.</div>
+
+    <div class="callout gold mt3"><b>Readability as a feature:</b> the guard is deliberately synchronous and local. A reviewer can follow one function from item name to PayPal call without jumping through abstractions. That is worth more than a generic "tool framework" in a 24-hour build.</div>
+  </div>
+  <footer class="pf"><span>04 · The craft</span><span><b>28</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 29 TESTING ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>04 · The craft</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Testing &amp; operations</p>
+    <h1>What was verified, what to verify before you present</h1>
+    <p class="lead">A demo is a production incident with an audience. The checklist below separates "the code compiles" from "the payment actually settles".</p>
+
+    <div class="grid2 mt3">
+      <div>
+        <h2>Verified locally</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Check</th><th style="width:20%">Result</th></tr></thead>
+            <tbody>
+              <tr><td>TypeScript typecheck</td><td class="ok">pass</td></tr>
+              <tr><td>Production build</td><td class="ok">pass</td></tr>
+              <tr><td>Home page renders</td><td class="ok">200</td></tr>
+              <tr><td><code class="inline">/api/checkout</code> without credentials</td><td class="ok">400 + guidance</td></tr>
+              <tr><td>Receipt page without an order</td><td class="ok">200</td></tr>
+              <tr><td>Agent Toolkit loads on Node 18</td><td class="ok">pass</td></tr>
+              <tr><td>Credential smoke test</td><td class="warn">needs keys</td></tr>
+              <tr><td>End-to-end sandbox payment</td><td class="warn">needs keys</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="tiny mt2">End-to-end payment was not executed in the scaffold environment because no PayPal credentials were present. Run <code class="inline">npm run check:paypal</code> first, then one full flow before recording.</p>
+      </div>
+      <div>
+        <h2>Pre-demo test plan</h2>
+        <ul class="clean">
+          <li><b>T1 · Happy path.</b> Agent creates order, buyer approves, capture completes, receipt shows COMPLETED.</li>
+          <li><b>T2 · Cancel.</b> Buyer cancels; no capture; banner appears; cap untouched.</li>
+          <li><b>T3 · Over-cap prompt.</b> "Buy the earbuds" with $15 cap; guard blocks; fallback picks a legal item.</li>
+          <li><b>T4 · No model key.</b> Remove <code class="inline">OPENAI_API_KEY</code>; safe path completes.</li>
+          <li><b>T5 · Retry.</b> Refresh the return URL; receipt still shows the completed capture.</li>
+          <li><b>T6 · Deployed URL.</b> Repeat T1 on Vercel with the sandbox buyer, not localhost.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2 class="mt4">Deploy checklist</h2>
+    <div class="grid4">
+      <div class="card"><h3>1 · Env</h3><p class="tiny mb0">Client ID, secret, <code class="inline">PAYPAL_ENV=sandbox</code>, <code class="inline">APP_URL</code> = deployed HTTPS origin.</p></div>
+      <div class="card"><h3>2 · Buyer</h3><p class="tiny mb0">Create a Personal sandbox account; keep the email/password in the README for judges.</p></div>
+      <div class="card"><h3>3 · Smoke</h3><p class="tiny mb0">Run one full payment on the deployed URL. Check the receipt and PayPal dashboard.</p></div>
+      <div class="card"><h3>4 · Safety net</h3><p class="tiny mb0">Keep a completed receipt tab open; know the fallback toggle.</p></div>
+    </div>
+
+    <div class="callout red mt4"><b>Operational rule:</b> never demo with live credentials. Sandbox keys only. A leaked live secret in a public repo is both a disqualification and a real financial risk.</div>
+  </div>
+  <footer class="pf"><span>04 · The craft</span><span><b>29</b> / 30</span></footer>
+</section>
+
+<!-- ============================ 30 WHY IT WINS ============================ -->
+<section class="page">
+  <div class="rail"></div>
+  <header class="ph"><span>04 · The craft</span><span class="brand">AgentCart</span></header>
+  <div class="content">
+    <p class="kicker">Conclusion</p>
+    <h1>Why this wins, and what comes next</h1>
+    <p class="lead">Most agent demos ask you to trust the model. AgentCart asks you to verify the boundary. That is a stronger story, a safer product, and a better demo.</p>
+
+    <div class="grid2 mt3">
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th style="width:34%">Judging criterion</th><th>Where it shows up</th></tr></thead>
+          <tbody>
+            <tr><td><b>Use of PayPal</b></td><td>Orders v2 create, approval redirect, server-side capture, real capture ID.</td></tr>
+            <tr><td><b>Use of sponsor tech</b></td><td>Agent Toolkit function calling; optional MCP configuration in the README.</td></tr>
+            <tr><td><b>Technical depth</b></td><td>Guarded tool wrapper, token cache, deterministic fallback, idempotent capture.</td></tr>
+            <tr><td><b>Originality</b></td><td>Separation of powers for agents: proposal, authorisation, settlement.</td></tr>
+            <tr><td><b>Product thinking</b></td><td>Spend cap, allowlist, human gate, audit trail, honest failure states.</td></tr>
+            <tr><td><b>Demo quality</b></td><td>One screen, live sandbox proof, 2-minute script, fallback if the model fails.</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div>
+        <h2>The 2-minute script</h2>
+        <ol style="margin:0; padding-left:5mm; font-size:8.2pt; line-height:1.55; color:#344054">
+          <li><b>0:00</b> — "Everyone is shipping buying agents. Nobody wants to give an LLM their card."</li>
+          <li><b>0:15</b> — Type the errand, set the cap to $15.</li>
+          <li><b>0:30</b> — Point at the audit trail and the mode badge.</li>
+          <li><b>0:45</b> — Approve in PayPal as the sandbox buyer.</li>
+          <li><b>1:10</b> — Land on the receipt; show the capture ID.</li>
+          <li><b>1:25</b> — Open the guard code: the cap and allowlist.</li>
+          <li><b>1:45</b> — Pull the model key; show the safe path still works.</li>
+          <li><b>2:00</b> — Close on the boundary, not the chatbot.</li>
+        </ol>
+      </div>
+    </div>
+
+    <h2 class="mt4">Roadmap, in priority order</h2>
+    <div class="grid4">
+      <div class="card tint"><span class="tag">Next</span><h3 class="mt2">Webhooks</h3><p class="tiny mb0">Handle <code class="inline">PAYMENT.CAPTURE.COMPLETED</code> and refunds asynchronously; add signature verification.</p></div>
+      <div class="card tint"><span class="tag">Next</span><h3 class="mt2">Signed catalog</h3><p class="tiny mb0">Replace the local fixture with a signed merchant feed; keep exact-name/price as the final gate.</p></div>
+      <div class="card tint"><span class="tag">Later</span><h3 class="mt2">Mandates</h3><p class="tiny mb0">Per-merchant, per-category, and time-bounded authority — the real primitive for agent commerce.</p></div>
+      <div class="card tint"><span class="tag">Later</span><h3 class="mt2">Multi-merchant</h3><p class="tiny mb0">Marketplace payouts, split settlement, and dispute handling with the same guard model.</p></div>
+    </div>
+
+    <div class="callout green mt4"><b>The lasting idea:</b> agentic commerce will not be won by the agent that can do the most. It will be won by the agent that can be trusted with the least necessary authority — and can prove it.</div>
+
+    <div class="divider"></div>
+    <div class="row" style="align-items:flex-end">
+      <div class="col"><div class="tiny" style="letter-spacing:1.4pt; text-transform:uppercase; color:#7b8aa5">AgentCart</div><div style="font-size:15pt; font-weight:700; letter-spacing:-0.3pt; color:#0b1b33">Autonomy with a seatbelt.</div></div>
+      <div class="col" style="text-align:right"><div class="tiny">Architecture · Design · Implementation</div><div class="tiny">30 pages · sandbox build · 2026</div></div>
+    </div>
+  </div>
+  <footer class="pf"><span>04 · The craft</span><span><b>30</b> / 30</span></footer>
+</section>
+
+
+</body>
+</html>
